@@ -1,0 +1,125 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { Save } from "lucide-react";
+import { saveMissionAction, type ActionState } from "@/app/actions/teacher";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import type { MissionRow } from "@/server/types";
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60);
+}
+
+export function MissionForm({ mission }: { mission?: MissionRow }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(saveMissionAction, null);
+  const [slug, setSlug] = useState(mission?.slug ?? "");
+  const [slugTouched, setSlugTouched] = useState(Boolean(mission?.slug));
+  const [title, setTitle] = useState(mission?.title ?? "");
+
+  return (
+    <form action={formAction} className="space-y-4" noValidate>
+      {mission ? <input type="hidden" name="missionId" value={mission.id} /> : null}
+      {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
+      {state?.success ? <Alert tone="success">{state.success}</Alert> : null}
+
+      <div className="grid gap-4 sm:grid-cols-[1.4fr_1fr]">
+        <Field label="Judul misi" htmlFor="title" hint="Singkat dan menarik, misalnya “Pasar Pintar”.">
+          <input
+            id="title"
+            name="title"
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              if (!slugTouched) setSlug(slugify(event.target.value));
+            }}
+            className="input"
+            maxLength={80}
+            required
+          />
+        </Field>
+
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <Field label="Slug URL" htmlFor="slug" hint="Huruf kecil dan tanda hubung.">
+            <input
+              id="slug"
+              name="slug"
+              value={slug}
+              onChange={(event) => {
+                setSlugTouched(true);
+                setSlug(slugify(event.target.value));
+              }}
+              className="input font-mono text-sm"
+              maxLength={60}
+              required
+            />
+          </Field>
+          <Field label="Urutan" htmlFor="orderIndex" hint="1 = pertama">
+            <input
+              id="orderIndex"
+              name="orderIndex"
+              type="number"
+              min={1}
+              max={99}
+              defaultValue={mission?.order_index ?? 1}
+              className="input w-20"
+              required
+            />
+          </Field>
+        </div>
+      </div>
+
+      <Field label="Deskripsi singkat" htmlFor="description" hint="Tampil di peta misi. Maksimal 600 karakter.">
+        <textarea
+          id="description"
+          name="description"
+          defaultValue={mission?.description ?? ""}
+          className="input min-h-20"
+          maxLength={600}
+        />
+      </Field>
+
+      <Field label="Cerita misi" htmlFor="story" hint="Pengantar singkat sebelum siswa mengerjakan soal.">
+        <textarea
+          id="story"
+          name="story"
+          defaultValue={mission?.story ?? ""}
+          className="input min-h-28"
+          maxLength={2000}
+        />
+      </Field>
+
+      <Field
+        label="Tujuan pembelajaran"
+        htmlFor="learningObjectives"
+        hint="Satu tujuan per baris. Maksimal 8 baris."
+      >
+        <textarea
+          id="learningObjectives"
+          name="learningObjectives"
+          defaultValue={(mission?.learning_objectives ?? []).join("\n")}
+          className="input min-h-24"
+          placeholder={"Menghitung total belanja\nMenghitung uang kembalian"}
+        />
+      </Field>
+
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={pending}>
+          <Save className="size-4" aria-hidden="true" />
+          {pending ? "Menyimpan..." : mission ? "Simpan perubahan" : "Buat misi"}
+        </Button>
+        <p className="text-xs text-muted">
+          {mission ? "Perubahan langsung terlihat oleh siswa bila misi sudah terbit." : "Misi baru dibuat sebagai draf."}
+        </p>
+      </div>
+    </form>
+  );
+}
