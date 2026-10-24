@@ -13,7 +13,8 @@ export default async function TeacherLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="hidden border-r border-line bg-surface/70 lg:flex lg:flex-col lg:gap-6 lg:p-5">
+      {/* Sidebar menempel (sticky) setinggi viewport: konten utama yang bergulir, bukan sidebar. */}
+      <aside className="hidden border-r border-line bg-surface/70 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:gap-6 lg:overflow-y-auto lg:p-5">
         <Logo />
         <TeacherNav />
         <div className="mt-auto rounded-2xl bg-paper p-3.5">
