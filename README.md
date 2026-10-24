@@ -201,7 +201,7 @@ Perintah lain:
 | `npm run db:audit-kurikulum` | Daftar misi & kelas yang belum punya tingkat kelas (perlu kategorisasi manual) |
 | `npm run typecheck` | TypeScript strict tanpa emisi |
 | `npm run test:http` | Smoke test HTTP (routing, guard anonim, akses per peran); arahkan `APP_URL` ke hasil deployment |
-| `npm test` | 147 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
+| `npm test` | 153 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
 | `npm run build` / `npm start` | Build & jalankan versi produksi |
 
 ### Variabel environment
@@ -264,6 +264,15 @@ masih password demo (kurang dari 12 karakter). Jangan aktifkan akun demo siswa d
   dan `Content-Security-Policy` (produksi, `default-src 'self'`). Middleware hanya memeriksa
   keberadaan cookie sesi; keabsahan sesi dan hak akses tetap diverifikasi di server + RLS.
 
+### Tinjauan risiko: tingkat kelas & kode undangan
+
+Ditinjau pada tahap validasi, tanpa mengubah fitur:
+
+| Area | Temuan yang diverifikasi | Risiko sisa | Rekomendasi |
+| --- | --- | --- | --- |
+| Ubah tingkat sendiri | Tugas privat terikat pada keanggotaan + tingkat **kelas**, bukan tingkat profil; ubah tingkat tidak membuka tugas kelas lain (test 36–37); RLS menolak ubah tingkat siswa lain (test 39) | Siswa bisa menyatakan tingkat lain untuk membuka **misi publik** tingkat itu | Kunci tingkat bila sudah punya kelas, atau tampilkan perubahannya di roster guru |
+| Kode undangan | 6 karakter × 32 simbol ≈ 30 bit; rotasi oleh guru membatalkan kode lama (test 40–41); 8 kegagalan/10 menit per siswa disimpan di database + rate limit sesi | Belum ada batas per IP/edge, belum kedaluwarsa, `class_join_attempts` belum dibersihkan | Rate limit di edge → masa berlaku kode → job pembersihan |
+
 ### Yang perlu diketahui sebelum produksi
 
 - **Kunci jawaban dilindungi di lapisan aplikasi, bukan kolom database.** Guru memerlukan
@@ -321,17 +330,20 @@ UI guru memakai **soft delete** (`archived_at`) untuk soal dan misi.
 
 Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenario wajib):
 
-- `npx tsc --noEmit` — bersih.
-- `npx vitest run` — **147 test lulus** (11 file): normalisasi angka, skor/XP, lencana, verifikasi
+- `npm run typecheck` — bersih (0 error).
+- `npm test` (vitest) — **153 test lulus, 0 gagal** (11 file): normalisasi angka, skor/XP, lencana, verifikasi
   aritmetika 30 soal, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
   siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, pembatalan percobaan,
   resume setelah semua soal dijawab, bank soal varian, latihan tanpa XP, peta kemampuan per topik,
   validasi terbit per slot, pemisahan konten per tingkat kelas (filter guru, isolasi soal, penugasan
   kelas, akses siswa, riwayat lama, RLS), pendaftaran tanpa kelas, konten mandiri per tingkat, gabung
   kelas via kode (ganda, lintas tingkat, pembatasan percobaan), isolasi data antar anggota, kewenangan
-  guru, dan konfigurasi seed.
-- `npm run test:http` — 20/20 pemeriksaan HTTP lulus.
-- `npm run build` — sukses, 18 route.
+  guru, perubahan tingkat siswa vs tugas privat, rotasi kode undangan, dan konfigurasi seed.
+- `npm run test:http` — **20/20 pemeriksaan HTTP lulus** terhadap `next start` lokal (port 3100):
+  4 guard anonim (`/belajar`, `/latihan`, `/kelas-saya`, `/guru/dashboard`), 404 halaman tak dikenal,
+  akses siswa (`/belajar`, `/progres`, `/profil`, `/kelas-saya`, isi halaman Kelas saya), akses guru
+  (dasbor + `/guru/misi`), dan penolakan lintas peran.
+- `npm run build` — sukses, 18 route aplikasi (+ `_not-found`).
 - Uji manual browser (production build):
   - daftar siswa baru tanpa kode kelas → diarahkan ke `/kelas-saya`, kode akses tampil di banner,
     daftar kelas kosong, tingkat "belum dipilih";
@@ -374,6 +386,10 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenari
   - mengulang misi yang sudah 100% (10/10) hanya menambah 20 XP — dari 100 ke 120, batas maksimal
     misi itu — dan halaman hasil menjelaskan alasannya secara eksplisit.
 
+Catatan: seluruh angka di atas adalah **hasil eksekusi aktual** pada commit ini, bukan target. Bila
+dijalankan di mesin lain, jalankan keempat gate (`typecheck`, `test`, `build`, `test:http`) dan
+bandingkan hasilnya; lulusnya build/smoke tidak dengan sendirinya berarti aplikasi "aman".
+
 ---
 
 ## 8. Keterbatasan & rencana pengembangan
@@ -388,10 +404,17 @@ Belum dikerjakan:
   untuk semua slot adalah pekerjaan konten, bukan perubahan kode.
 - Peta kemampuan memakai akurasi mentah per topik; belum memperhitungkan tingkat kesulitan soal.
 - Kategori kurikulum (mata pelajaran/topik) masih statis lewat migrasi; belum ada CRUD referensi di UI.
-- Siswa dapat mengubah tingkat kelasnya sendiri kapan saja; belum ada persetujuan guru atau kunci
-  tingkat untuk siswa yang tergabung di kelas (kompatibilitas hanya dicek saat bergabung).
-- Kode undangan tetap 6 karakter dan tidak kedaluwarsa; pembatasan percobaan hanya per siswa,
-  belum per alamat IP atau per instance.
+- **Perubahan tingkat kelas oleh siswa** belum dibatasi atau memerlukan persetujuan guru. Yang sudah
+  diverifikasi: mengubah tingkat sendiri **tidak** membuka tugas privat kelas lain (tugas privat terikat
+  pada keanggotaan + tingkat kelas, bukan tingkat profil), dan siswa tidak bisa mengubah tingkat siswa
+  lain (RLS). Risiko yang tersisa: siswa dapat menyatakan tingkat lebih tinggi/rendah untuk membuka
+  **misi publik** tingkat lain. Rekomendasi: kunci tingkat bila siswa sudah tergabung di kelas, atau
+  tampilkan perubahan tingkat di roster guru.
+- **Kode undangan** 6 karakter dari 32 simbol (≈30 bit) dan tidak kedaluwarsa. Yang sudah ada: rotasi
+  oleh guru (kode lama langsung tidak berlaku — diuji), pembatasan 8 kegagalan per 10 menit per siswa
+  di database, dan rate limit in-memory per sesi. Belum ada: pembatasan per IP/edge, masa berlaku, dan
+  pembersihan berkala `class_join_attempts`. Rekomendasi prioritas: rate limit kode di lapisan edge,
+  lalu masa berlaku kode, lalu job pembersihan.
 - Misi/kelas yang belum dikategorikan harus dirapikan manual — lihat `npm run db:audit-kurikulum`.
   Selama belum dirapikan, misi tersebut tidak tampil ke siswa (pilihan aman).
 - Belum ada test E2E otomatis (Playwright); verifikasi browser dilakukan manual.

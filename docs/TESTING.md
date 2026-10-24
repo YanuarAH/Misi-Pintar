@@ -32,7 +32,7 @@ uji ke database pengembangan atau produksi.**
 ```
 npx vitest run
 Test Files  11 passed (11)
-Tests       147 passed (147)
+Tests       153 passed (153)
 ```
 
 ## Matriks skenario wajib
@@ -78,6 +78,12 @@ Tests       147 passed (147)
 | 33 | Isolasi data anggota, profil, dan tugas privat antarsiswa | sama, describe "tugas kelas dan isolasi data" |
 | 34 | Kewenangan guru terbatas pada kelasnya, perubahan tingkat dijaga | sama, describe "kewenangan guru" |
 | 35 | Progres & riwayat tetap ada setelah keluar kelas | sama, describe "progres lama tetap aman" |
+| 36 | Ubah tingkat sendiri tidak membuka tugas privat kelas lain | `tests/kelas-opsional.test.ts` (describe "perubahan tingkat kelas tidak menambah akses") |
+| 37 | Tugas privat tetap untuk anggota walau tingkat profil diubah | sama |
+| 38 | Tingkat profil hanya mengatur konten mandiri | sama |
+| 39 | Siswa tidak bisa mengubah tingkat siswa lain (RLS) | sama |
+| 40 | Rotasi kode membuat kode lama tidak berlaku | `tests/kelas-opsional.test.ts` (describe "rotasi kode undangan") |
+| 41 | Guru lain tidak bisa merotasi kode kelas orang | sama |
 
 ## Cakupan per file
 

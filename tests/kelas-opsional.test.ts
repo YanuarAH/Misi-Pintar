@@ -15,6 +15,7 @@ import {
 import {
   getClassDetail,
   listTeacherClasses,
+  regenerateJoinCode,
   removeClassMember,
   setClassGrade,
   TeacherError,
@@ -322,6 +323,91 @@ describe("kewenangan guru", () => {
 
     const classes = await getStudentClasses(studentViewer(student.id), student.id);
     expect(classes.gradeLevel).toBe(2);
+  });
+});
+
+describe("perubahan tingkat kelas tidak menambah akses", () => {
+  it("mengubah tingkat sendiri tidak membuka tugas privat kelas lain", async () => {
+    const other = await registerStudent({ gradeLevel: 5, joinCode: class5B.joinCode });
+    const outsider = await registerStudent({ gradeLevel: 5 });
+
+    // mission5 ditugaskan hanya ke 5B.
+    expect((await listMissionCards(studentViewer(other.id), other.id)).map((card) => card.id)).toContain(mission5.id);
+
+    await setStudentGrade(studentViewer(outsider.id), outsider.id, 5);
+    expect((await listMissionCards(studentViewer(outsider.id), outsider.id)).map((card) => card.id)).not.toContain(
+      mission5.id,
+    );
+
+    // Naik/turun tingkat sendiri tidak mengubah kepemilikan tugas privat.
+    await setStudentGrade(studentViewer(outsider.id), outsider.id, 2);
+    expect((await listMissionCards(studentViewer(outsider.id), outsider.id)).map((card) => card.id)).not.toContain(
+      mission5.id,
+    );
+    await setStudentGrade(studentViewer(outsider.id), outsider.id, 5);
+    expect((await listMissionCards(studentViewer(outsider.id), outsider.id)).map((card) => card.id)).not.toContain(
+      mission5.id,
+    );
+  });
+
+  it("tugas privat tetap terlihat bagi anggotanya walau tingkat profil diubah", async () => {
+    const member = await registerStudent({ gradeLevel: 5, joinCode: class5B.joinCode });
+    await setStudentGrade(studentViewer(member.id), member.id, 2);
+
+    // Keanggotaan (dan tingkat kelasnya) tetap menjadi dasar akses tugas privat.
+    const cards = await listMissionCards(studentViewer(member.id), member.id);
+    expect(cards.map((card) => card.id)).toContain(mission5.id);
+  });
+
+  it("tingkat profil mengatur konten mandiri, bukan konten privat", async () => {
+    const student = await registerStudent({ gradeLevel: 5 });
+    expect((await listMissionCards(studentViewer(student.id), student.id)).map((card) => card.id)).not.toContain(
+      mission4.id,
+    );
+
+    await setStudentGrade(studentViewer(student.id), student.id, 4);
+    expect((await listMissionCards(studentViewer(student.id), student.id)).map((card) => card.id)).toContain(
+      mission4.id,
+    );
+  });
+
+  it("siswa tidak dapat mengubah tingkat kelas siswa lain", async () => {
+    const victim = await registerStudent({ gradeLevel: 5 });
+    const actor = await registerStudent({ gradeLevel: 5 });
+
+    const updated = await asViewer(studentViewer(actor.id), async (query) =>
+      query("update profiles set grade_level = 2 where id = $1 returning id", [victim.id]),
+    );
+    expect(updated).toHaveLength(0);
+
+    const grade = await adminQuery<{ grade_level: number | null }>("select grade_level from profiles where id = $1", [
+      victim.id,
+    ]);
+    expect(grade[0].grade_level).toBe(5);
+  });
+});
+
+describe("rotasi kode undangan", () => {
+  it("kode lama tidak berlaku setelah guru membuat kode baru", async () => {
+    const rotating = await createClassroom(teacherA.id, "Rotasi", 5);
+    const oldCode = rotating.joinCode;
+    const newCode = await regenerateJoinCode(teacherViewer(teacherA.id), rotating.id);
+    expect(newCode).not.toBe(oldCode);
+
+    const student = await registerStudent({ gradeLevel: 5 });
+    expect((await joinClassWithCode(studentViewer(student.id), oldCode)).status).toBe("KODE_TIDAK_DITEMUKAN");
+    expect((await joinClassWithCode(studentViewer(student.id), newCode)).status).toBe("BERHASIL");
+  });
+
+  it("guru lain tidak dapat merotasi kode kelas yang bukan miliknya", async () => {
+    const target = await createClassroom(teacherA.id, "Milik A", 5);
+    await expect(regenerateJoinCode(teacherViewer(teacherB.id), target.id)).rejects.toThrow(TeacherError);
+
+    const stillWorks = await joinClassWithCode(
+      studentViewer((await registerStudent({ gradeLevel: 5 })).id),
+      target.joinCode,
+    );
+    expect(stillWorks.status).toBe("BERHASIL");
   });
 });
 
