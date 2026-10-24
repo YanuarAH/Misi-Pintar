@@ -43,6 +43,10 @@ lewat UI. Tidak ada model AI, tidak ada layanan berbayar, tidak ada iklan atau p
 Aturan main yang diterapkan:
 
 - 10 XP per jawaban benar, bonus 20 XP saat misi selesai — dihitung **server**, bukan dari browser.
+- **XP hanya bertambah bila skor percobaan baru melampaui rekor misi itu.** Total XP per misi
+  karena itu maksimal 120, sehingga mengulang misi untuk mengumpulkan XP tidak mungkin.
+  Percobaan ulang tetap dicatat di riwayat dan tetap bisa memperbaiki skor/nilai terbaik.
+- Misi hanya bisa diselesaikan setelah semua soal dijawab.
 - Jawaban salah tidak mengurangi XP dan tidak memblokir apa pun.
 - Misi 2 terbuka setelah misi 1 selesai, misi 3 setelah misi 2 — tanpa syarat nilai sempurna.
 - Mengulang misi membuat percobaan baru; riwayat lama tidak dihapus.
@@ -162,8 +166,9 @@ Tidak ada secret yang ditanam di kode. `.env.local` masuk `.gitignore`; `.env.ex
 | Siswa | kode `DEMO1234`, PIN `1234` |
 | Kode kelas untuk pendaftaran | `MISI5A` |
 
-Seed juga membuat satu percobaan Rani (80%) agar dasbor guru tidak kosong. **Ganti password guru
-sebelum deploy** dan jangan aktifkan akun demo di produksi.
+Seed juga membuat satu percobaan Rani (80%) agar dasbor guru tidak kosong. **Di produksi seed
+menolak berjalan** bila `SEED_TEACHER_EMAIL`/`SEED_TEACHER_PASSWORD` belum diisi atau passwordnya
+masih password demo (kurang dari 12 karakter). Jangan aktifkan akun demo siswa di produksi.
 
 ---
 
@@ -236,8 +241,9 @@ UI guru memakai **soft delete** (`archived_at`) untuk soal dan misi.
 Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 skenario wajib):
 
 - `npx tsc --noEmit` — bersih.
-- `npx vitest run` — **80 test lulus** (7 file): normalisasi angka, skor/XP, lencana, verifikasi
-  aritmetika 30 soal, validasi soal & misi, RLS anonim/siswa/guru, siklus misi lengkap, batas akses guru.
+- `npx vitest run` — **88 test lulus** (8 file): normalisasi angka, skor/XP, lencana, verifikasi
+  aritmetika 30 soal, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
+  siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, dan konfigurasi seed.
 - `npm run build` — sukses, 16 route.
 - Uji manual browser (production build):
   - daftar siswa baru → dapat kode akses → dashboard menampilkan hanya misi 1 terbuka;
@@ -248,7 +254,9 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 sken
   - guru login → dasbor berisi 2 siswa, 2 penyelesaian, rata-rata 90%, soal tersulit;
   - guru menambah soal lewat editor ("Soal ditambahkan", 10 → 11), lalu menghapusnya lewat konfirmasi;
   - guru membuka kelas, melihat kode siswa, membuka laporan siswa dan detail percobaannya;
-  - tidak ada overflow horizontal pada lebar 375px di `/`, `/belajar`, `/misi/[slug]`, `/progres`.
+  - tidak ada overflow horizontal pada lebar 375px di `/`, `/belajar`, `/misi/[slug]`, `/progres`;
+  - mengulang misi yang sudah 100% (10/10) hanya menambah 20 XP — dari 100 ke 120, batas maksimal
+    misi itu — dan halaman hasil menjelaskan alasannya secara eksplisit.
 
 ---
 

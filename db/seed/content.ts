@@ -74,7 +74,7 @@ export const seedMissions: SeedMission[] = [
         type: "multiple_choice",
         prompt:
           "Rani membayar belanjaan Rp13.750 dengan selembar uang Rp20.000. Berapa uang kembalian yang ia terima?",
-        options: ["Rp5.250", "Rp6.250", "Rp6.750", "Rp7.250"],
+        options: ["Rp6.250", "Rp5.250", "Rp7.250", "Rp6.750"],
         answer: "Rp6.250",
         difficulty: "mudah",
         hint: "Kembalian = uang yang dibayar dikurangi harga belanja.",
@@ -98,7 +98,7 @@ export const seedMissions: SeedMission[] = [
         type: "multiple_choice",
         prompt:
           "Di lapak sepatu ada diskon 10% untuk semua barang. Sepatu yang Rani lihat harganya Rp40.000. Berapa besar potongannya?",
-        options: ["Rp3.000", "Rp4.000", "Rp5.000", "Rp6.000"],
+        options: ["Rp3.000", "Rp5.000", "Rp4.000", "Rp6.000"],
         answer: "Rp4.000",
         difficulty: "sedang",
         hint: "10% sama dengan sepersepuluh. Bagilah harga dengan 10.",
@@ -122,7 +122,7 @@ export const seedMissions: SeedMission[] = [
         type: "multiple_choice",
         prompt:
           "Rani menimbang 0,75 kg gula dan 0,5 kg tepung. Berapa berat keduanya jika digabung?",
-        options: ["1,15 kg", "1,25 kg", "1,30 kg", "1,50 kg"],
+        options: ["1,15 kg", "1,30 kg", "1,50 kg", "1,25 kg"],
         answer: "1,25 kg",
         difficulty: "sedang",
         hint: "Jumlahkan bagian bulat dan bagian desimalnya dengan rapi.",
@@ -247,7 +247,7 @@ export const seedMissions: SeedMission[] = [
         type: "multiple_choice",
         prompt:
           "Chef Nara perlu menambahkan sedikit gula, yaitu pecahan yang nilainya kurang dari 1/2. Mana yang tepat?",
-        options: ["2/5", "4/6", "3/5", "5/8"],
+        options: ["4/6", "3/5", "5/8", "2/5"],
         answer: "2/5",
         difficulty: "sedang",
         hint: "Ubah setiap pecahan menjadi desimal, lalu cari yang kurang dari 0,5.",
@@ -365,7 +365,7 @@ export const seedMissions: SeedMission[] = [
       {
         type: "multiple_choice",
         prompt: "Area rumput berbentuk persegi panjang berukuran 9 m x 6 m. Berapa luas area rumput itu?",
-        options: ["15 m²", "30 m²", "54 m²", "108 m²"],
+        options: ["15 m²", "54 m²", "30 m²", "108 m²"],
         answer: "54 m²",
         difficulty: "sedang",
         hint: "Luas persegi panjang = panjang x lebar. Jangan menjumlahkan panjang dan lebar.",
@@ -385,7 +385,7 @@ export const seedMissions: SeedMission[] = [
       {
         type: "multiple_choice",
         prompt: "Pak Bima mengukur luas lantai kelas. Satuan apa yang paling tepat dipakai?",
-        options: ["meter", "meter persegi (m²)", "meter kubik (m³)", "liter"],
+        options: ["meter", "meter kubik (m³)", "meter persegi (m²)", "liter"],
         answer: "meter persegi (m²)",
         difficulty: "mudah",
         hint: "Luas adalah besar daerah yang tertutup, bukan panjang garis atau isi ruang.",
@@ -406,7 +406,7 @@ export const seedMissions: SeedMission[] = [
       {
         type: "multiple_choice",
         prompt: "Kotak tanaman berbentuk kubus dengan rusuk 5 cm. Berapa volume kotak itu?",
-        options: ["25 cm³", "75 cm³", "125 cm³", "150 cm³"],
+        options: ["125 cm³", "25 cm³", "75 cm³", "150 cm³"],
         answer: "125 cm³",
         difficulty: "tantangan",
         hint: "Volume kubus = rusuk x rusuk x rusuk.",

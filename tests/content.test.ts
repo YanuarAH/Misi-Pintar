@@ -226,4 +226,25 @@ describe("konten pembelajaran", () => {
     expect(unitQuestion?.answer).toBe("meter persegi (m²)");
     expect(unitQuestion?.verification).toBeUndefined();
   });
+
+  it("menyebar posisi jawaban benar agar tidak bisa ditebak dari pola", () => {
+    const total: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
+    for (const mission of seedMissions) {
+      const positions: number[] = [];
+      for (const question of mission.questions) {
+        if (question.type !== "multiple_choice") continue;
+        const index = (question.options ?? []).findIndex((option) => isChoiceAnswerCorrect(option, question.answer));
+        expect(index, `${mission.slug}: jawaban "${question.answer}" tidak ada di pilihan`).toBeGreaterThanOrEqual(0);
+        positions.push(index + 1);
+        total[index + 1] += 1;
+      }
+      expect(new Set(positions).size, `${mission.slug} memakai posisi jawaban yang terlalu seragam`).toBeGreaterThanOrEqual(2);
+    }
+
+    for (const position of [1, 2, 3, 4]) {
+      expect(total[position], `posisi ${position} terlalu jarang dipakai`).toBeGreaterThanOrEqual(2);
+      expect(total[position], `posisi ${position} terlalu sering dipakai`).toBeLessThanOrEqual(5);
+    }
+  });
 });

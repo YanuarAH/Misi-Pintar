@@ -32,7 +32,8 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
   const result = await getAttemptResult(viewerOf(session), attemptId);
   if (!result) notFound();
 
-  const { attempt, mission, answers, earnedAchievements, nextMission, accuracy } = result;
+  const { attempt, mission, answers, earnedAchievements, nextMission, accuracy, xpPotential, previousBestXp } =
+    result;
   const correct = answers.filter((answer) => answer.isCorrect);
   const wrong = answers.filter((answer) => !answer.isCorrect);
   const inProgress = !attempt.completed_at;
@@ -98,9 +99,19 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
                     <dd className="text-lg font-black">{accuracy}%</dd>
                   </div>
                 </dl>
-                <p className="mt-2 text-xs text-muted">
-                  {attempt.correct_count} jawaban benar × 10 XP + 20 XP bonus misi selesai = {attempt.xp_earned} XP.
-                </p>
+                {attempt.xp_earned < xpPotential ? (
+                  <p className="mt-2 rounded-xl bg-paper px-3 py-2 text-xs leading-relaxed text-muted">
+                    Kamu sudah pernah mengumpulkan <strong className="text-ink">{previousBestXp} XP</strong> dari
+                    misi ini. Percobaan ini menambah <strong className="text-ink">{attempt.xp_earned} XP</strong>{" "}
+                    karena skor barumu belum melampaui rekor sebelumnya (potensi penuh {xpPotential} XP). XP
+                    dirancang begini supaya tidak bisa ditambah dengan mengulang misi yang sama.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-muted">
+                    {attempt.correct_count} jawaban benar × 10 XP + 20 XP bonus misi selesai ={" "}
+                    {attempt.xp_earned} XP.
+                  </p>
+                )}
               </div>
             </div>
           </section>

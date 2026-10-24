@@ -397,13 +397,38 @@ export async function completeAttempt(
     if (attempt.completed_at) return { ok: true as const, attemptId: attempt.id };
 
     const total = attempt.question_ids.length || attempt.total_questions;
-    const correctResult = await client.query<{ correct: string }>(
-      "select count(*)::text as correct from attempt_answers where attempt_id = $1 and is_correct",
+    if (total === 0) return { ok: false as const, reason: "Misi ini tidak memiliki soal." };
+
+    const answerStats = await client.query<{ answered: string; correct: string }>(
+      `select count(*)::text as answered,
+              count(*) filter (where is_correct)::text as correct
+         from attempt_answers where attempt_id = $1`,
       [attempt.id],
     );
-    const correctCount = Math.min(Number(correctResult.rows[0]?.correct ?? 0), total);
+    const answeredCount = Number(answerStats.rows[0]?.answered ?? 0);
+    if (answeredCount < total) {
+      return {
+        ok: false as const,
+        reason: `Masih ada ${total - answeredCount} soal yang belum dijawab.`,
+      };
+    }
+
+    const correctCount = Math.min(Number(answerStats.rows[0]?.correct ?? 0), total);
     const score = computeScore(correctCount, total);
-    const xp = computeXp(correctCount, true);
+
+    // XP dihitung dari peningkatan rekor, bukan diakumulasi tiap pengulangan.
+    // Total XP per misi karena itu tidak pernah melebihi satu kali nilai penuh (maks. 120).
+    const priorBestResult = await client.query<{ best: string | null }>(
+      `select max(correct_count * $4 + $5)::text as best
+         from attempts
+        where student_id = $1
+          and mission_id = $2
+          and completed_at is not null
+          and id <> $3`,
+      [studentId, attempt.mission_id, attempt.id, XP_PER_CORRECT, XP_MISSION_BONUS],
+    );
+    const previousBestXp = Number(priorBestResult.rows[0]?.best ?? 0);
+    const xp = Math.max(0, computeXp(correctCount, true) - previousBestXp);
 
     const priorCompleted = await client.query<{ mission_id: string }>(
       `select distinct mission_id from attempts
@@ -506,6 +531,17 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     [attempt.student_id],
   );
 
+  const priorBest = await one<{ best: string | null }>(
+    viewer,
+    `select max(correct_count * $3 + $4)::text as best
+       from attempts
+      where student_id = $1
+        and mission_id = $2
+        and completed_at is not null
+        and id <> $5`,
+    [attempt.student_id, attempt.mission_id, XP_PER_CORRECT, XP_MISSION_BONUS, attempt.id],
+  );
+
   return {
     attempt,
     mission: {
@@ -533,6 +569,8 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     nextMission: nextRow ? { slug: nextRow.slug, title: nextRow.title, unlocked: nextUnlocked } : null,
     accuracy: attempt.total_questions ? Math.round((attempt.correct_count / attempt.total_questions) * 100) : 0,
     xpTotal: Number(xpTotal?.xp ?? 0),
+    xpPotential: computeXp(attempt.correct_count, true),
+    previousBestXp: Number(priorBest?.best ?? 0),
   };
 }
 

@@ -94,4 +94,8 @@ export type AttemptResult = {
   nextMission: { slug: string; title: string; unlocked: boolean } | null;
   accuracy: number;
   xpTotal: number;
+  /** XP penuh yang layak didapat dari hasil percobaan ini. */
+  xpPotential: number;
+  /** Rekor XP terbaik dari percobaan lain pada misi yang sama. */
+  previousBestXp: number;
 };

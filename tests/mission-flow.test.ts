@@ -30,6 +30,7 @@ let otherStudent: { id: string };
 let mission1: { id: string; slug: string };
 let mission2: { id: string; slug: string };
 let questionIds: string[] = [];
+let classroomId = "";
 let attemptId = "";
 let firstCompletedAt: Date | null = null;
 
@@ -39,6 +40,7 @@ beforeAll(async () => {
   await resetData();
   teacher = await createTeacher("Pak Penguji");
   const classroom = await createClassroom(teacher.id, "Kelas Uji Alur");
+  classroomId = classroom.id;
   student = await createStudent({ classId: classroom.id });
   otherStudent = await createStudent({ classId: classroom.id });
 
@@ -316,6 +318,9 @@ describe("alur misi siswa", () => {
       "Berapa kembalian dari Rp10.000 untuk belanja Rp8.500?",
     );
     expect(afterArchive!.answers.every((answer) => answer.explanation.length > 0)).toBe(true);
+
+    // Kembalikan soal agar test berikutnya tetap memakai misi 3 soal.
+    await adminQuery("update questions set archived_at = null where id = $1", [questionIds[2]]);
   });
 
   it("mencatat progres dan riwayat percobaan", async () => {
@@ -349,5 +354,92 @@ describe("keamanan data percobaan", () => {
   it("percobaan milik siswa lain tidak dapat diselesaikan", async () => {
     const result = await completeAttempt({ userId: otherStudent.id, role: "student" }, otherStudent.id, attemptId);
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("aturan XP dan syarat penyelesaian", () => {
+  const viewerOf = (id: string) => ({ userId: id, role: "student" as const });
+
+  async function runAttempt(studentId: string, answers: string[]): Promise<string> {
+    const started = await startOrResumeAttempt(viewerOf(studentId), studentId, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error("gagal memulai misi");
+
+    for (const [index, question] of started.state.questions.entries()) {
+      const result = await submitAnswer(viewerOf(studentId), studentId, {
+        attemptId: started.state.attemptId,
+        questionId: question.id,
+        answer: answers[index] ?? "",
+      });
+      expect(result.ok).toBe(true);
+    }
+
+    const completed = await completeAttempt(viewerOf(studentId), studentId, started.state.attemptId);
+    expect(completed.ok).toBe(true);
+    return started.state.attemptId;
+  }
+
+  it("menolak menyelesaikan misi bila masih ada soal yang belum dijawab", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    const started = await startOrResumeAttempt(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    const answered = await submitAnswer(viewerOf(fresh.id), fresh.id, {
+      attemptId: started.state.attemptId,
+      questionId: started.state.questions[0].id,
+      answer: CORRECT_CHOICE,
+    });
+    expect(answered.ok).toBe(true);
+
+    const completed = await completeAttempt(viewerOf(fresh.id), fresh.id, started.state.attemptId);
+    expect(completed.ok).toBe(false);
+
+    const [row] = await adminQuery<{ xp_earned: number; completed_at: Date | null }>(
+      "select xp_earned, completed_at from attempts where id = $1",
+      [started.state.attemptId],
+    );
+    expect(row.xp_earned).toBe(0);
+    expect(row.completed_at).toBeNull();
+  });
+
+  it("XP hanya bertambah ketika rekor skor membaik, sehingga tidak bisa difarming", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+
+    // Percobaan 1: 2 dari 3 benar -> 40 XP
+    await runAttempt(fresh.id, [CORRECT_CHOICE, "3/4", "1600"]);
+    // Percobaan 2: semua benar -> potensi 50, rekor sebelumnya 40, jadi +10
+    await runAttempt(fresh.id, [CORRECT_CHOICE, "3/4", NUMERIC_ANSWER]);
+    // Percobaan 3: sama sempurna -> tidak menambah XP
+    const third = await runAttempt(fresh.id, [CORRECT_CHOICE, "3/4", NUMERIC_ANSWER]);
+
+    const [row] = await adminQuery<{ xp: string; count: string; best: number }>(
+      `select coalesce(sum(xp_earned),0)::text as xp, count(*)::text as count, max(score) as best
+         from attempts where student_id = $1`,
+      [fresh.id],
+    );
+    expect(row.count).toBe("3");
+    expect(row.xp).toBe("50");
+    expect(row.best).toBe(100);
+
+    const result = await getAttemptResult(viewerOf(fresh.id), third);
+    expect(result?.attempt.xp_earned).toBe(0);
+    expect(result?.previousBestXp).toBe(50);
+    expect(result?.xpPotential).toBe(50);
+  });
+
+  it("percobaan ulang dengan skor lebih rendah tidak mengurangi XP", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    await runAttempt(fresh.id, [CORRECT_CHOICE, "3/4", NUMERIC_ANSWER]); // 3/3 -> 50
+    await runAttempt(fresh.id, ["Rp10.000", "2/4", "1600"]); // 0/3 -> 0
+
+    const [row] = await adminQuery<{ xp: string }>(
+      "select coalesce(sum(xp_earned),0)::text as xp from attempts where student_id = $1",
+      [fresh.id],
+    );
+    expect(row.xp).toBe("50");
+
+    const progress = await getProgress(viewerOf(fresh.id), fresh.id);
+    expect(progress.xp).toBe(50);
   });
 });

@@ -103,9 +103,9 @@ export default async function MissionOverviewPage({
                   </Button>
                 </form>
                 {card.completed ? (
-                  <p className="text-center text-xs text-muted">
-                    Skor terbaikmu {card.bestScore} · percobaan ke-{card.attemptCount + 1} akan dicatat sebagai
-                    riwayat baru.
+                  <p className="text-center text-xs leading-relaxed text-muted">
+                    Skor terbaikmu {card.bestScore}. Percobaan baru selalu dicatat di riwayat, tetapi XP hanya
+                    bertambah bila skormu melampaui rekor sebelumnya (maksimal {rewardXp} XP per misi).
                   </p>
                 ) : (
                   <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted">

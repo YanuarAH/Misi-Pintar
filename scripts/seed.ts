@@ -11,6 +11,7 @@ import { Client } from "pg";
 import { seedMissions } from "../db/seed/content";
 import { hashSecret } from "../src/lib/password";
 import { loadEnv, requireEnv } from "./lib/env";
+import { resolveTeacherSeedCredentials } from "./lib/seed-config";
 
 const DEMO_CLASS_CODE = "MISI5A";
 const DEMO_STUDENT_CODE = "DEMO1234";
@@ -28,8 +29,9 @@ async function main() {
   try {
     await client.query("begin");
 
-    const teacherEmail = (process.env.SEED_TEACHER_EMAIL ?? "guru@misipintar.test").toLowerCase();
-    const teacherPassword = process.env.SEED_TEACHER_PASSWORD ?? "GuruMisi2026!";
+    const teacherCredentials = resolveTeacherSeedCredentials(process.env);
+    const teacherEmail = teacherCredentials.email;
+    const teacherPassword = teacherCredentials.password;
 
     const existingTeacher = await client.query<{ id: string }>(
       "select id from profiles where lower(email) = $1",
@@ -238,12 +240,16 @@ async function main() {
     if (allowDemo) {
       console.log("");
       console.log("Akun demo:");
-      console.log(`  Guru  : ${process.env.SEED_TEACHER_EMAIL ?? "guru@misipintar.test"} / ${process.env.SEED_TEACHER_PASSWORD ?? "GuruMisi2026!"}`);
+      console.log(
+        isProduction
+          ? `  Guru  : ${teacherEmail} (password dari environment)`
+          : `  Guru  : ${teacherEmail} / ${teacherPassword}`,
+      );
       console.log(`  Siswa : kode ${DEMO_STUDENT_CODE} / PIN ${DEMO_STUDENT_PIN}`);
       console.log(`  Kode kelas untuk pendaftaran siswa baru: ${DEMO_CLASS_CODE}`);
     }
   } catch (error) {
-    await client.query("rollback");
+    await client.query("rollback").catch(() => undefined);
     throw error;
   } finally {
     await client.end();

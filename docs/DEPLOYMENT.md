@@ -52,8 +52,10 @@ export SEED_DEMO_ACCOUNTS=false     # jangan buat akun demo di produksi
 npm run db:seed
 ```
 
-Untuk produksi, lebih aman membuat akun guru langsung di SQL Editor dengan hash dari skrip kecil
-(`hashSecret` di `src/lib/password.ts`) daripada menyimpan password guru di environment.
+`SEED_TEACHER_EMAIL` dan `SEED_TEACHER_PASSWORD` **wajib** diisi saat `NODE_ENV=production`;
+seed akan berhenti dengan pesan jelas bila masih memakai password demo (kurang dari 12 karakter).
+Alternatif yang lebih aman: buat akun guru langsung di SQL Editor dengan hash dari `hashSecret`
+di `src/lib/password.ts`, lalu jalankan seed tanpa akun guru.
 
 ## 4. Deploy ke Vercel
 
