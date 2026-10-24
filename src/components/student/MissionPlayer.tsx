@@ -28,13 +28,16 @@ export function MissionPlayer({
   questions,
   startIndex,
   allAnswered,
+  mode = "mission",
 }: {
   attemptId: string;
   missionTitle: string;
   questions: PlayQuestion[];
   startIndex: number;
   allAnswered: boolean;
+  mode?: "mission" | "practice";
 }) {
+  const isPractice = mode === "practice";
   const router = useRouter();
   const [index, setIndex] = useState(Math.min(Math.max(startIndex, 0), questions.length - 1));
   const [selected, setSelected] = useState("");
@@ -106,7 +109,9 @@ export function MissionPlayer({
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-leaf-soft text-[#1c5b36]">
             <CheckCircle2 className="size-6" aria-hidden="true" />
           </span>
-          <h1 className="mt-3 text-xl font-black">Semua soal sudah dijawab</h1>
+          <h1 className="mt-3 text-xl font-black">
+            {isPractice ? "Latihan selesai" : "Semua soal sudah dijawab"}
+          </h1>
           <p className="mt-1.5 text-sm text-muted">
             Progresmu tersimpan. Tekan tombol di bawah untuk melihat nilai dan pembahasan.
           </p>
@@ -118,7 +123,7 @@ export function MissionPlayer({
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             <Button onClick={handleFinish} disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-              Lihat hasil misi
+              {isPractice ? "Lihat hasil latihan" : "Lihat hasil misi"}
               {!busy ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
             </Button>
             <Button variant="secondary" onClick={() => setShowCompletion(false)} disabled={busy}>
@@ -134,7 +139,9 @@ export function MissionPlayer({
     <div className="mx-auto max-w-2xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">{missionTitle}</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+            {isPractice ? `Latihan · ${missionTitle}` : missionTitle}
+          </p>
           <h1 className="text-lg font-black">
             Soal {index + 1} <span className="font-semibold text-muted">dari {questions.length}</span>
           </h1>
@@ -266,7 +273,11 @@ export function MissionPlayer({
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Send className="size-4" aria-hidden="true" />}
               {busy ? "Memeriksa..." : "Periksa jawaban"}
             </Button>
-            <p className="text-xs text-muted">Tidak ada pengurangan XP kalau salah.</p>
+            <p className="text-xs text-muted">
+              {isPractice
+                ? "Latihan tidak mengubah XP, jadi bebas mencoba tanpa takut salah."
+                : "Tidak ada pengurangan XP kalau salah."}
+            </p>
           </div>
         ) : null}
       </section>
@@ -296,7 +307,7 @@ export function MissionPlayer({
                 <XCircle className="size-5" aria-hidden="true" />
               )}
               {feedback.isCorrect ? "Tepat sekali!" : "Belum tepat"}
-              {feedback.isCorrect ? (
+              {feedback.isCorrect && !isPractice ? (
                 <span className="chip border-leaf/30 bg-white/70 text-[#1c5b36]">+10 XP</span>
               ) : null}
             </p>
@@ -312,7 +323,7 @@ export function MissionPlayer({
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={handleNext} disabled={busy} variant={isLast ? "sun" : "primary"}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-              {isLast ? "Lihat hasil misi" : "Soal berikutnya"}
+              {isLast ? (isPractice ? "Lihat hasil latihan" : "Lihat hasil misi") : "Soal berikutnya"}
               {!busy ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
             </Button>
             <p className="flex items-center gap-1.5 text-xs text-muted">

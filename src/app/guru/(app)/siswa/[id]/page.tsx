@@ -7,6 +7,7 @@ import { getStudentReport } from "@/server/teacher";
 import { Avatar } from "@/components/ui/Avatar";
 import { AchievementBadge } from "@/components/ui/AchievementBadge";
 import { ButtonLink } from "@/components/ui/Button";
+import { MASTERY_LABEL } from "@/lib/topics";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { accuracyLabel } from "@/lib/scoring";
@@ -97,7 +98,12 @@ export default async function StudentReportPage({ params }: { params: Promise<{ 
                 <tbody>
                   {report.attempts.map((attempt) => (
                     <tr key={attempt.id}>
-                      <td className="font-bold">{attempt.missionTitle}</td>
+                      <td className="font-bold">
+                        {attempt.missionTitle}
+                        {attempt.mode === "practice" ? (
+                          <span className="ml-1.5 chip bg-sky-soft text-[10px] text-[#1d4b73]">Latihan</span>
+                        ) : null}
+                      </td>
                       <td className="whitespace-nowrap text-xs text-muted">
                         {attempt.completedAt ? formatDateTime(attempt.completedAt) : "Belum selesai"}
                       </td>
@@ -136,6 +142,46 @@ export default async function StudentReportPage({ params }: { params: Promise<{ 
         </section>
 
         <div className="space-y-4">
+          <section className="card p-4">
+            <h2 className="flex items-center gap-2 text-base font-black">
+              <Target className="size-4 text-primary" aria-hidden="true" />
+              Peta kemampuan per topik
+            </h2>
+            <p className="mt-1 text-xs text-muted">Dari jawaban yang sudah dikirim siswa.</p>
+            {report.topics.every((topic) => topic.answers === 0) ? (
+              <p className="mt-3 text-sm text-muted">Belum ada jawaban tercatat.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {report.topics
+                  .filter((topic) => topic.answers > 0)
+                  .map((topic) => (
+                    <li key={topic.key}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                        <span className="text-sm font-semibold">{topic.label}</span>
+                        <span className="text-[11px] text-muted">
+                          {topic.correct}/{topic.answers} · {topic.accuracy}% ·{" "}
+                          <span className="font-bold text-ink">{MASTERY_LABEL[topic.level]}</span>
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-paper">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            topic.level === "kuat" ? "bg-leaf" : topic.level === "berkembang" ? "bg-sun" : "bg-coral",
+                          )}
+                          style={{ width: `${Math.max(topic.accuracy ?? 0, 4)}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+              </ul>
+            )}
+            <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-xs leading-relaxed text-muted">
+              Gunakan sebagai bahan pengajaran, bukan diagnosis. Jawaban salah bisa berarti siswa butuh
+              latihan tambahan atau hanya kurang teliti saat mengerjakan.
+            </p>
+          </section>
+
           <section className="card p-4">
             <h2 className="flex items-center gap-2 text-base font-black">
               <Target className="size-4 text-sun" aria-hidden="true" />

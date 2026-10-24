@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const SESSION_COOKIE = "misi_session";
 
-const STUDENT_PREFIXES = ["/belajar", "/misi", "/progres", "/profil", "/hasil"];
+const STUDENT_PREFIXES = ["/belajar", "/misi", "/progres", "/profil", "/hasil", "/latihan"];
 
 function isStudentArea(pathname: string): boolean {
   return STUDENT_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -44,5 +44,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/belajar/:path*", "/misi/:path*", "/progres/:path*", "/profil/:path*", "/hasil/:path*", "/guru/:path*"],
+  matcher: [
+    "/belajar/:path*",
+    "/misi/:path*",
+    "/progres/:path*",
+    "/profil/:path*",
+    "/hasil/:path*",
+    "/latihan/:path*",
+    "/guru/:path*",
+  ],
 };

@@ -3,6 +3,7 @@ import { one, rows, withViewer, type Viewer } from "@/lib/db";
 import { parseNumericAnswer } from "@/lib/normalize";
 import { hashSecret } from "@/lib/password";
 import { questionSchema, type MissionInput, type QuestionFormInput } from "@/lib/validation";
+import { getTopicMastery } from "./student";
 import type { MissionRow, QuestionRow } from "./types";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -205,11 +206,11 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
        (select count(distinct cm.student_id) from class_members cm
           join classes c on c.id = cm.class_id where c.teacher_id = $1) as students,
        (select count(*) from attempts a
-          where a.completed_at is not null
+          where a.completed_at is not null and a.mode = 'mission'
             and a.student_id in (select cm.student_id from class_members cm
                                  join classes c on c.id = cm.class_id where c.teacher_id = $1)) as completions,
        (select round(avg(a.score))::int from attempts a
-          where a.completed_at is not null
+          where a.completed_at is not null and a.mode = 'mission'
             and a.student_id in (select cm.student_id from class_members cm
                                  join classes c on c.id = cm.class_id where c.teacher_id = $1)) as avg_accuracy,
        (select count(distinct a.student_id) from attempts a
@@ -236,7 +237,7 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
        join missions m on m.id = a.mission_id
        join class_members cm on cm.student_id = a.student_id
        join classes c on c.id = cm.class_id
-      where c.teacher_id = $1 and a.completed_at is not null
+      where c.teacher_id = $1 and a.completed_at is not null and a.mode = 'mission'
       order by a.completed_at desc
       limit 8`,
     [teacherId],
@@ -250,7 +251,8 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
        join questions q on q.id = aa.question_id
        join missions m on m.id = q.mission_id
        join attempts a on a.id = aa.attempt_id
-      where a.student_id in (select cm.student_id from class_members cm
+      where a.mode = 'mission'
+        and a.student_id in (select cm.student_id from class_members cm
                              join classes c on c.id = cm.class_id where c.teacher_id = $1)
       group by q.id, m.title
       order by (count(*) filter (where not aa.is_correct))::numeric / count(*) desc
@@ -315,10 +317,11 @@ export async function getStudentReport(viewer: Viewer, studentId: string) {
     xp_earned: number;
     completed_at: Date | null;
     started_at: Date;
+    mode: "mission" | "practice";
   }>(
     viewer,
     `select a.id, m.title, m.slug, a.score, a.correct_count, a.total_questions, a.xp_earned,
-            a.completed_at, a.started_at
+            a.completed_at, a.started_at, a.mode
        from attempts a join missions m on m.id = a.mission_id
       where a.student_id = $1
       order by a.started_at desc`,
@@ -338,7 +341,7 @@ export async function getStudentReport(viewer: Viewer, studentId: string) {
        join questions q on q.id = aa.question_id
        join missions m on m.id = q.mission_id
        join attempts a on a.id = aa.attempt_id
-      where a.student_id = $1
+      where a.student_id = $1 and a.mode = 'mission'
       group by q.id, m.title
       having count(*) filter (where not aa.is_correct) > 0
       order by count(*) filter (where not aa.is_correct) desc, count(*) desc
@@ -371,6 +374,7 @@ export async function getStudentReport(viewer: Viewer, studentId: string) {
       xpEarned: row.xp_earned,
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
       startedAt: new Date(row.started_at),
+      mode: row.mode,
     })),
     achievements: achievements.map((row) => ({ key: row.achievement_key, earnedAt: new Date(row.earned_at) })),
     weakTopics: weakTopics.map((row) => ({
@@ -380,6 +384,7 @@ export async function getStudentReport(viewer: Viewer, studentId: string) {
       total: Number(row.total),
     })),
     xp: Number(totals?.xp ?? 0),
+    topics: await getTopicMastery(viewer, studentId),
   };
 }
 
@@ -390,6 +395,20 @@ export type MissionAdminItem = MissionRow & {
   validQuestionCount: number;
   publishIssues: string[];
 };
+
+/**
+ * Setiap slot harus punya minimal satu soal yang valid. Varian boleh rusak,
+ * asalkan soal utamanya masih bisa dipakai; slot tanpa soal valid memblokir terbit.
+ */
+export function slotIssues(questions: Pick<QuestionRow, "id" | "slot_index" | "question_type" | "options" | "correct_answer" | "prompt" | "explanation">[]): string[] {
+  const slots = new Map<number, boolean>();
+  for (const question of questions) {
+    const valid = questionIssues(question).length === 0;
+    slots.set(question.slot_index, (slots.get(question.slot_index) ?? false) || valid);
+  }
+  const broken = [...slots.entries()].filter(([, valid]) => !valid).map(([slot]) => slot);
+  return broken.length === 0 ? [] : [`Slot ${broken.sort((a, b) => a - b).join(", ")} belum punya soal yang valid.`];
+}
 
 export function questionIssues(question: Pick<QuestionRow, "question_type" | "options" | "correct_answer" | "prompt" | "explanation">): string[] {
   const issues: string[] = [];
@@ -412,7 +431,8 @@ export function questionIssues(question: Pick<QuestionRow, "question_type" | "op
 export async function listTeacherMissions(viewer: Viewer, teacherId: string): Promise<MissionAdminItem[]> {
   const missions = await rows<MissionRow & { question_count: string }>(
     viewer,
-    `select m.*, (select count(*) from questions q where q.mission_id = m.id and q.archived_at is null) as question_count
+    `select m.*, (select count(distinct q.slot_index) from questions q
+                    where q.mission_id = m.id and q.archived_at is null) as question_count
        from missions m
       where m.archived_at is null and m.author_id = $1
       order by m.order_index asc`,
@@ -428,6 +448,7 @@ export async function listTeacherMissions(viewer: Viewer, teacherId: string): Pr
     const missionQuestions = questions.filter((question) => question.mission_id === mission.id);
     const issues = missionQuestions.flatMap((question) => questionIssues(question));
     if (missionQuestions.length === 0) issues.push("Misi belum memiliki soal.");
+    issues.push(...slotIssues(missionQuestions));
     return {
       ...mission,
       questionCount: Number(mission.question_count),
@@ -447,23 +468,26 @@ export async function getMissionForEdit(viewer: Viewer, missionId: string, teach
 
   const questions = await rows<QuestionRow>(
     viewer,
-    "select * from questions where mission_id = $1 and archived_at is null order by order_index asc",
+    "select * from questions where mission_id = $1 and archived_at is null order by slot_index asc, variant_index asc",
     [missionId],
   );
 
   const attempts = await one<{ total: string; avg_score: number | null }>(
     viewer,
-    "select count(*)::text as total, round(avg(score))::int as avg_score from attempts where mission_id = $1 and completed_at is not null",
+    `select count(*)::text as total, round(avg(score))::int as avg_score
+       from attempts where mission_id = $1 and completed_at is not null and mode = 'mission'`,
     [missionId],
   );
 
   return {
     mission,
     questions: questions.map((question) => ({ ...question, issues: questionIssues(question) })),
+    slotCount: new Set(questions.map((question) => question.slot_index)).size,
     stats: { attempts: Number(attempts?.total ?? 0), avgScore: attempts?.avg_score ?? null },
     publishIssues: (() => {
       const issues = questions.flatMap((question) => questionIssues(question));
       if (questions.length === 0) issues.push("Misi belum memiliki soal.");
+      issues.push(...slotIssues(questions));
       return [...new Set(issues)];
     })(),
   };
@@ -537,9 +561,9 @@ export async function setMissionPublished(viewer: Viewer, missionId: string, pub
       [missionId],
     );
     if (questions.length === 0) throw new TeacherError("Misi belum punya soal, belum bisa diterbitkan.");
-    const invalid = questions.filter((question) => questionIssues(question).length > 0);
-    if (invalid.length > 0) {
-      throw new TeacherError(`Masih ada ${invalid.length} soal yang belum valid. Perbaiki dulu sebelum menerbitkan.`);
+    const brokenSlots = slotIssues(questions);
+    if (brokenSlots.length > 0) {
+      throw new TeacherError(`${brokenSlots[0]} Perbaiki dulu sebelum menerbitkan.`);
     }
   }
 
@@ -573,6 +597,8 @@ function questionRecord(input: QuestionFormInput) {
     hint: input.hint,
     difficulty: input.difficulty,
     orderIndex: input.orderIndex,
+    topic: input.topic,
+    slotIndex: input.slotIndex ?? input.orderIndex,
   };
 }
 
@@ -582,10 +608,18 @@ export async function createQuestion(viewer: Viewer, missionId: string, rawInput
     throw new TeacherError(parsed.error.issues[0]?.message ?? "Data soal belum valid.");
   }
   const record = questionRecord(parsed.data);
+  // Soal baru untuk slot yang sudah terisi otomatis menjadi varian berikutnya.
+  const variantRow = await one<{ next: string }>(
+    viewer,
+    "select coalesce(max(variant_index) + 1, 0)::text as next from questions where mission_id = $1 and slot_index = $2 and archived_at is null",
+    [missionId, record.slotIndex],
+  );
   const question = await one<QuestionRow>(
     viewer,
-    `insert into questions (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty, order_index)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `insert into questions
+       (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty,
+        order_index, topic, slot_index, variant_index)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      returning *`,
     [
       missionId,
@@ -597,6 +631,9 @@ export async function createQuestion(viewer: Viewer, missionId: string, rawInput
       record.hint,
       record.difficulty,
       record.orderIndex,
+      record.topic,
+      record.slotIndex,
+      Number(variantRow?.next ?? 0),
     ],
   );
   if (!question) throw new TeacherError("Soal gagal disimpan.");
@@ -613,7 +650,7 @@ export async function updateQuestion(viewer: Viewer, questionId: string, rawInpu
     viewer,
     `update questions
         set question_type = $2, prompt = $3, options = $4, correct_answer = $5,
-            explanation = $6, hint = $7, difficulty = $8, order_index = $9
+            explanation = $6, hint = $7, difficulty = $8, order_index = $9, topic = $10, slot_index = $11
       where id = $1 and archived_at is null
       returning *`,
     [
@@ -626,6 +663,8 @@ export async function updateQuestion(viewer: Viewer, questionId: string, rawInpu
       record.hint,
       record.difficulty,
       record.orderIndex,
+      record.topic,
+      record.slotIndex,
     ],
   );
   if (!question) throw new TeacherError("Soal tidak ditemukan.");

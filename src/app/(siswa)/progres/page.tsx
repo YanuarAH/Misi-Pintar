@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpenCheck, History, Play, Sparkles, Star, Trophy } from "lucide-react";
+import { BookOpenCheck, History, Play, Sparkles, Star, Target, Trophy } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { getProgress } from "@/server/student";
 import { cancelAttemptAction, startMissionAction } from "@/app/actions/student";
@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { ACHIEVEMENT_KEYS } from "@/lib/achievements";
+import { MASTERY_LABEL } from "@/lib/topics";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -131,6 +132,53 @@ export default async function ProgressPage({
       </section>
 
       <section className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-lg font-black">
+            <Target className="size-4 text-primary" aria-hidden="true" />
+            Peta kemampuan per topik
+          </h2>
+          <span className="text-xs text-muted">Dihitung dari jawaban yang kamu kirim</span>
+        </div>
+        {progress.topics.every((topic) => topic.answers === 0) ? (
+          <p className="mt-3 text-sm text-muted">
+            Belum ada data topik. Selesaikan satu misi untuk melihat kemampuanmu per topik.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2.5">
+            {progress.topics
+              .filter((topic) => topic.answers > 0)
+              .map((topic) => {
+                const accuracy = topic.accuracy ?? 0;
+                const tone =
+                  topic.level === "kuat"
+                    ? "bg-leaf"
+                    : topic.level === "berkembang"
+                      ? "bg-sun"
+                      : "bg-coral";
+                return (
+                  <li key={topic.key}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                      <span className="text-sm font-bold">{topic.label}</span>
+                      <span className="text-xs text-muted">
+                        {topic.correct}/{topic.answers} benar · {accuracy}% ·{" "}
+                        <span className="font-bold text-ink">{MASTERY_LABEL[topic.level]}</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-paper" role="img" aria-label={`${topic.label}: ${accuracy}% benar, ${MASTERY_LABEL[topic.level]}`}>
+                      <div className={cn("h-full rounded-full", tone)} style={{ width: `${Math.max(accuracy, 4)}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        )}
+        <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-xs leading-relaxed text-muted">
+          Topik dengan hasil rendah bukan berarti kamu tidak bisa. Itu tanda materi yang bisa dilatih lagi,
+          misalnya dengan mengulang misi terkait atau soal yang pernah salah.
+        </p>
+      </section>
+
+      <section className="card p-5">
         <h2 className="flex items-center gap-2 text-lg font-black">
           <Sparkles className="size-4 text-sun" aria-hidden="true" />
           Lencana
@@ -180,7 +228,12 @@ export default async function ProgressPage({
               <tbody>
                 {progress.history.map((item) => (
                   <tr key={item.id}>
-                    <td className="font-bold">{item.missionTitle}</td>
+                    <td className="font-bold">
+                      {item.missionTitle}
+                      {item.mode === "practice" ? (
+                        <span className="ml-1.5 chip bg-sky-soft text-[10px] text-[#1d4b73]">Latihan</span>
+                      ) : null}
+                    </td>
                     <td className="whitespace-nowrap text-xs text-muted">
                       {item.inProgress ? "Sedang dikerjakan" : formatDateTime(item.completedAt)}
                     </td>
@@ -203,7 +256,9 @@ export default async function ProgressPage({
                         </span>
                       )}
                     </td>
-                    <td className="text-center text-muted">{item.inProgress ? "—" : item.xpEarned}</td>
+                    <td className="text-center text-muted">
+                      {item.inProgress || item.mode === "practice" ? "—" : item.xpEarned}
+                    </td>
                     <td>
                       {item.inProgress ? (
                         <div className="flex flex-wrap items-center justify-end gap-1.5">

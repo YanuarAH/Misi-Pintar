@@ -112,6 +112,7 @@ export default async function MissionPlayPage({ params }: { params: Promise<{ sl
         questions={state.questions}
         startIndex={state.startIndex}
         allAnswered={state.allAnswered}
+        mode={state.mode}
       />
     </div>
   );

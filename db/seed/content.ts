@@ -6,6 +6,8 @@
  * eksak. Jadi jawaban tidak bisa "salah hitung" tanpa membuat test gagal.
  */
 
+import type { TopicKey } from "../../src/lib/topics";
+
 export type SeedQuestionType = "multiple_choice" | "numeric";
 
 export type SeedQuestion = {
@@ -27,7 +29,15 @@ export type SeedMission = {
   story: string;
   learningObjectives: string[];
   orderIndex: number;
+  /** Topik tiap soal, sejajar dengan `questions` (slot 1..n). */
+  questionTopics: TopicKey[];
   questions: SeedQuestion[];
+};
+
+/** Soal varian untuk satu slot: dipilih acak saat siswa memulai percobaan baru. */
+export type SeedVariant = SeedQuestion & {
+  slot: number;
+  topic: TopicKey;
 };
 
 export const seedMissions: SeedMission[] = [
@@ -45,6 +55,18 @@ export const seedMissions: SeedMission[] = [
       "Menghitung harga setelah diskon persen sederhana",
     ],
     orderIndex: 1,
+    questionTopics: [
+      "penjumlahan-pengurangan",
+      "perkalian-pembagian",
+      "penjumlahan-pengurangan",
+      "desimal",
+      "persen-diskon",
+      "persen-diskon",
+      "desimal",
+      "penjumlahan-pengurangan",
+      "perkalian-pembagian",
+      "penjumlahan-pengurangan",
+    ],
     questions: [
       {
         type: "numeric",
@@ -182,6 +204,18 @@ export const seedMissions: SeedMission[] = [
       "Menghubungkan pecahan dengan takaran resep sehari-hari",
     ],
     orderIndex: 2,
+    questionTopics: [
+      "pecahan-operasi",
+      "pecahan-banding",
+      "pecahan-satuan",
+      "pecahan-operasi",
+      "pecahan-operasi",
+      "pecahan-banding",
+      "pecahan-satuan",
+      "pecahan-operasi",
+      "desimal",
+      "pecahan-operasi",
+    ],
     questions: [
       {
         type: "multiple_choice",
@@ -317,6 +351,7 @@ export const seedMissions: SeedMission[] = [
       "Memilih satuan panjang, luas, dan volume yang tepat",
     ],
     orderIndex: 3,
+    questionTopics: ["keliling", "luas", "keliling", "volume", "luas", "keliling", "satuan", "keliling", "volume", "luas"],
     questions: [
       {
         type: "numeric",
@@ -428,3 +463,97 @@ export const seedMissions: SeedMission[] = [
     ],
   },
 ];
+
+/**
+ * Bank soal varian. Setiap entri mengisi slot yang sama dengan soal utama,
+ * sehingga siswa bisa mendapat angka/konteks berbeda pada percobaan berikutnya
+ * tanpa menambah jumlah soal per percobaan.
+ */
+export const seedVariants: Record<string, SeedVariant[]> = {
+  "pasar-pintar": [
+    {
+      slot: 3,
+      topic: "penjumlahan-pengurangan",
+      type: "multiple_choice",
+      prompt:
+        "Rani membayar belanjaan Rp18.400 dengan selembar uang Rp25.000. Berapa uang kembalian yang ia terima?",
+      options: ["Rp6.600", "Rp6.400", "Rp7.600", "Rp7.400"],
+      answer: "Rp6.600",
+      difficulty: "mudah",
+      hint: "Kembalian = uang dibayar - harga belanja.",
+      explanation:
+        "Kembalian = Rp25.000 - Rp18.400 = Rp6.600. Cara cepat: Rp25.000 - Rp18.000 = Rp7.000, lalu kurangi Rp400 menjadi Rp6.600.",
+      verification: { expression: "25000 - 18400" },
+    },
+    {
+      slot: 7,
+      topic: "desimal",
+      type: "numeric",
+      prompt:
+        "Rani membeli 1,25 kg jeruk dan 0,8 kg anggur. Berapa kilogram berat seluruh buah yang dibeli?",
+      answer: "2.05",
+      unitLabel: "kilogram",
+      difficulty: "sedang",
+      hint: "Tulis 0,8 sebagai 0,80 supaya jumlah angka di belakang koma sama.",
+      explanation:
+        "1,25 + 0,80 = 2,05. Menyejajarkan tanda koma membuat penjumlahan desimal lebih rapi.",
+      verification: { expression: "1.25 + 0.8" },
+    },
+  ],
+  "koki-pecahan": [
+    {
+      slot: 1,
+      topic: "pecahan-operasi",
+      type: "multiple_choice",
+      prompt:
+        "Chef Nara mencampur 1/4 gelas air dan 1/3 gelas sirup. Berapa gelas isi campuran itu?",
+      options: ["7/12 gelas", "2/7 gelas", "5/12 gelas", "1/12 gelas"],
+      answer: "7/12 gelas",
+      difficulty: "sedang",
+      hint: "Penyebut 4 dan 3 bisa disamakan menjadi 12.",
+      explanation:
+        "1/4 = 3/12 dan 1/3 = 4/12. Jumlahnya 3/12 + 4/12 = 7/12 gelas. Penyebut tidak dijumlahkan.",
+      verification: { expression: "1/4 + 1/3" },
+    },
+    {
+      slot: 9,
+      topic: "desimal",
+      type: "numeric",
+      prompt:
+        "Chef Nara punya 3,5 kg beras dan sudah memakai 1,25 kg. Berapa kilogram beras yang tersisa?",
+      answer: "2.25",
+      unitLabel: "kilogram",
+      difficulty: "tantangan",
+      hint: "Tulis 3,5 sebagai 3,50 lalu kurangkan bersusun.",
+      explanation:
+        "Kurangkan bagian desimal dulu: 0,50 - 0,25 = 0,25. Lalu bagian bulat: 3 - 1 = 2. Hasilnya 2,25 kg.",
+      verification: { expression: "3.5 - 1.25" },
+    },
+  ],
+  "arsitek-mini": [
+    {
+      slot: 2,
+      topic: "luas",
+      type: "numeric",
+      prompt: "Kebun berbentuk persegi dengan sisi 9 m. Berapa meter persegi luas kebun itu?",
+      answer: "81",
+      unitLabel: "meter persegi",
+      difficulty: "mudah",
+      hint: "Luas persegi = sisi x sisi.",
+      explanation: "Luas = 9 x 9 = 81 m². Kelilingnya berbeda: 4 x 9 = 36 m.",
+      verification: { expression: "9 * 9" },
+    },
+    {
+      slot: 4,
+      topic: "volume",
+      type: "numeric",
+      prompt: "Kolam berbentuk balok dengan panjang 5 m, lebar 2 m, dan kedalaman 1,5 m. Berapa meter kubik volume kolam itu?",
+      answer: "15",
+      unitLabel: "meter kubik",
+      difficulty: "tantangan",
+      hint: "Kalikan panjang, lebar, lalu kedalaman. 5 x 2 = 10 lebih dulu.",
+      explanation: "Volume = 5 x 2 x 1,5 = 10 x 1,5 = 15 m³.",
+      verification: { expression: "5 * 2 * 1.5" },
+    },
+  ],
+};

@@ -26,7 +26,8 @@ lewat UI. Tidak ada model AI, tidak ada layanan berbayar, tidak ada iklan atau p
 | `/misi/[slug]` | Ringkasan misi: cerita, tujuan pembelajaran, jumlah soal, estimasi durasi, hadiah XP |
 | `/misi/[slug]/main` | Pengerjaan soal satu per satu, petunjuk, pemeriksaan jawaban, pembahasan, progres tersimpan otomatis |
 | `/hasil/[attemptId]` | Skor, XP, lencana yang didapat, soal yang sudah dikuasai, materi yang perlu diulang, pembahasan per soal |
-| `/progres` | Total XP, misi selesai, lencana, nilai terakhir/terbaik per misi, riwayat 30 percobaan terakhir, tombol lanjutkan/batalkan untuk percobaan yang belum selesai |
+| `/progres` | Total XP, misi selesai, lencana, **peta kemampuan per topik**, nilai terakhir/terbaik per misi, riwayat 30 percobaan terakhir (misi & latihan), tombol lanjutkan/batalkan |
+| `/latihan/[attemptId]` | Latihan ulang **hanya soal yang salah** dari satu percobaan; tanpa XP, tanpa membuka misi |
 | `/profil` | Ubah nama tampilan dan avatar; menampilkan kode siswa |
 
 ### Guru
@@ -52,6 +53,12 @@ Aturan main yang diterapkan:
 - Misi 2 terbuka setelah misi 1 selesai, misi 3 setelah misi 2 — tanpa syarat nilai sempurna.
 - Mengulang misi membuat percobaan baru; riwayat lama tidak dihapus.
 - Lencana: Penjelajah, Bintang Misi (≥80%), Sempurna (100%), Pembelajar Tekun (3 misi), unik per siswa.
+- **Latihan soal salah** (`/latihan/...`) tidak memberi XP, tidak memberi lencana, dan tidak membuka
+  misi baru; jawabannya tetap tercatat untuk peta kemampuan.
+- **Bank soal varian**: satu misi punya 10 slot; setiap slot boleh punya beberapa varian dan satu
+  varian dipilih acak saat percobaan dimulai, sehingga soal tidak selalu sama persis.
+- **Peta kemampuan** menghitung akurasi per topik (penjumlahan, pecahan, keliling, dst.) dari jawaban
+  yang benar-benar dikirim siswa, dengan label "Sudah kuat / Berkembang / Perlu latihan tambahan".
 
 ---
 
@@ -144,7 +151,7 @@ Perintah lain:
 | `npm run db:cleanup` | Hapus percobaan terbengkalai (belum selesai, tanpa jawaban, > 7 hari); `-- --days=30` untuk ambang lain |
 | `npm run typecheck` | TypeScript strict tanpa emisi |
 | `npm run test:http` | Smoke test HTTP (routing, guard anonim, akses per peran); arahkan `APP_URL` ke hasil deployment |
-| `npm test` | 93 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
+| `npm test` | 106 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
 | `npm run build` / `npm start` | Build & jalankan versi produksi |
 
 ### Variabel environment
@@ -225,16 +232,19 @@ masih password demo (kurang dari 12 karakter). Jangan aktifkan akun demo siswa d
 - `class_members` — unik `(class_id, student_id)`.
 - `missions` — `slug` unik, cerita, `learning_objectives text[]`, `order_index`, `is_published`, `author_id`, `archived_at`.
 - `questions` — tipe (`multiple_choice`/`numeric`), `options jsonb`, `correct_answer`, `explanation`, `hint`,
-  `difficulty`, `answer_unit`, `order_index`, `archived_at`.
-- `attempts` — skor, jumlah benar/total, XP, `question_ids uuid[]` (soal dibekukan saat mulai), waktu mulai/selesai;
-  indeks unik parsial memastikan **satu percobaan berjalan per siswa per misi**.
+  `difficulty`, `answer_unit`, `topic`, `slot_index`, `variant_index`, `order_index`, `archived_at`.
+  Indeks unik parsial `(mission_id, slot_index, variant_index)` mencegah varian kembar.
+- `attempts` — skor, jumlah benar/total, XP, `question_ids uuid[]` (soal dibekukan saat mulai),
+  `mode` (`mission`/`practice`), `source_attempt_id`, waktu mulai/selesai;
+  indeks unik parsial memastikan **satu percobaan misi berjalan per siswa per misi** (latihan bebas).
 - `attempt_answers` — unik per `(attempt_id, question_id)`, `is_correct`, `submitted_answer`.
 - `user_achievements` — unik `(student_id, achievement_key)`.
 - `sessions` — hash token, kedaluwarsa.
 
 Tambahan di luar daftar minimal: `answer_unit` (label satuan input), `question_ids` (agar perubahan
 materi tidak mengubah percobaan yang sedang berjalan), `archived_at` (soft delete), `author_id`
-(kepemilikan misi), `schema_migrations`.
+(kepemilikan misi), `topic`/`slot_index`/`variant_index` (peta kemampuan + bank varian),
+`mode`/`source_attempt_id` (latihan tanpa XP), `schema_migrations`.
 
 Penghapusan: kelas → anggota ikut terhapus; misi → soal ikut terhapus tetapi percobaan lama
 dipertahankan (FK `attempts.mission_id` cascade, `attempt_answers.question_id` restrict). Karena itu
@@ -247,11 +257,12 @@ UI guru memakai **soft delete** (`archived_at`) untuk soal dan misi.
 Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 skenario wajib):
 
 - `npx tsc --noEmit` — bersih.
-- `npx vitest run` — **93 test lulus** (8 file): normalisasi angka, skor/XP, lencana, verifikasi
+- `npx vitest run` — **106 test lulus** (9 file): normalisasi angka, skor/XP, lencana, verifikasi
   aritmetika 30 soal, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
   siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, pembatalan percobaan,
-  resume setelah semua soal dijawab, dan konfigurasi seed.
-- `npm run test:http` — 15/15 pemeriksaan HTTP lulus.
+  resume setelah semua soal dijawab, bank soal varian, latihan tanpa XP, peta kemampuan per topik,
+  validasi terbit per slot, dan konfigurasi seed.
+- `npm run test:http` — 17/17 pemeriksaan HTTP lulus.
 - `npm run build` — sukses, 16 route.
 - Uji manual browser (production build):
   - daftar siswa baru → dapat kode akses → dashboard menampilkan hanya misi 1 terbuka;
@@ -265,7 +276,14 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 sken
   - percobaan yang ditinggalkan tampil sebagai "Sedang dikerjakan" di `/progres` dengan tombol
     "Lanjutkan" dan "Batalkan" (konfirmasi dua langkah);
   - siswa dapat mengganti nama tampilan/avatar di `/profil` dan header langsung berubah;
-  - `npm run test:http` lulus 15/15 pemeriksaan (guard anonim 307, data lintas peran tidak bocor);
+  - `npm run test:http` lulus 17/17 pemeriksaan (guard anonim 307, data lintas peran tidak bocor);
+  - `/progres` menampilkan peta kemampuan per topik dari jawaban nyata (mis. "Penjumlahan &
+    pengurangan 7/8 · 88% · Sudah kuat");
+  - menyelesaikan misi dengan 8 jawaban salah menawarkan "Latih 8 soal ini saja" → halaman latihan
+    hanya berisi 8 soal itu → halaman hasil berlabel "Latihan selesai" tanpa kartu XP, XP total
+    tetap 240, dan riwayat menandai baris itu sebagai "Latihan" dengan XP "—";
+  - editor misi guru menampilkan "10 soal per percobaan · 12 soal tersimpan" dengan badge
+    "Slot 1 · varian 2", serta field Topik dan Slot pada formulir soal;
   - tidak ada overflow horizontal pada lebar 375px di `/`, `/belajar`, `/misi/[slug]`, `/progres`;
   - mengulang misi yang sudah 100% (10/10) hanya menambah 20 XP — dari 100 ke 120, batas maksimal
     misi itu — dan halaman hasil menjelaskan alasannya secara eksplisit.
@@ -280,7 +298,9 @@ Belum dikerjakan:
 - Ilustrasi soal (mis. denah taman) masih mengandalkan teks + emoji; belum ada SVG per soal.
 - Belum ada mode gelap, pengaturan font besar, atau terjemahan.
 - Belum ada ekspor CSV laporan kelas; belum ada cetak laporan.
-- Hanya Matematika, 3 misi, 30 soal (sesuai cakupan MVP).
+- Hanya Matematika, 3 misi, 30 soal inti + 6 varian (2 varian di 2 slot per misi). Menambah varian
+  untuk semua slot adalah pekerjaan konten, bukan perubahan kode.
+- Peta kemampuan memakai akurasi mentah per topik; belum memperhitungkan tingkat kesulitan soal.
 - Belum ada test E2E otomatis (Playwright); verifikasi browser dilakukan manual.
 - Belum ada ESLint.
 

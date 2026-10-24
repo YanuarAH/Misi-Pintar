@@ -76,6 +76,13 @@ async function main() {
       `${guardTeacher.status} -> ${guardTeacher.location}`,
     );
 
+    const guardPractice = await get("/latihan/00000000-0000-0000-0000-000000000000");
+    record(
+      "GET /latihan tanpa sesi dialihkan",
+      [302, 307, 308].includes(guardPractice.status) && guardPractice.location.includes("/masuk"),
+      `${guardPractice.status} -> ${guardPractice.location}`,
+    );
+
     const missing = await get("/halaman-tidak-ada");
     record("Halaman tidak dikenal mengembalikan 404", missing.status === 404, `status ${missing.status}`);
 
@@ -90,6 +97,15 @@ async function main() {
 
       const profile = await get("/profil", student.token);
       record("Siswa dapat membuka /profil", profile.status === 200, `status ${profile.status}`);
+
+      // notFound() terjadi setelah streaming dimulai (loading.tsx), jadi statusnya 200
+      // tetapi isinya halaman "tidak ditemukan" — bukan sesi latihan.
+      const practice = await get("/latihan/00000000-0000-0000-0000-000000000000", student.token);
+      record(
+        "Latihan yang tidak ada tidak menampilkan sesi",
+        practice.body.toLowerCase().includes("tidak ditemukan") && !practice.body.includes("Latihan ·"),
+        `status ${practice.status}`,
+      );
 
       const noTeacher = await get("/guru/dashboard", student.token);
       record(

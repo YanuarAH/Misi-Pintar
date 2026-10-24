@@ -15,7 +15,8 @@ import { getSession } from "@/lib/session";
 import { viewerOf } from "@/lib/auth";
 import { getAttemptResult } from "@/server/student";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { startMissionAction } from "@/app/actions/student";
+import { Alert } from "@/components/ui/Alert";
+import { startMissionAction, startPracticeAction } from "@/app/actions/student";
 import { Avatar } from "@/components/ui/Avatar";
 import { AchievementBadge } from "@/components/ui/AchievementBadge";
 import { accuracyLabel } from "@/lib/scoring";
@@ -24,16 +25,34 @@ import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Hasil misi", robots: { index: false } };
 
-export default async function AttemptResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
+export default async function AttemptResultPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ attemptId: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { attemptId } = await params;
+  const { error } = await searchParams;
   const session = await getSession();
   if (!session) redirect("/masuk");
   const isTeacher = session.role === "teacher";
   const result = await getAttemptResult(viewerOf(session), attemptId);
   if (!result) notFound();
 
-  const { attempt, mission, answers, earnedAchievements, nextMission, accuracy, xpPotential, previousBestXp } =
-    result;
+  const {
+    attempt,
+    mission,
+    answers,
+    earnedAchievements,
+    nextMission,
+    accuracy,
+    xpPotential,
+    previousBestXp,
+    mode,
+    wrongQuestionIds,
+  } = result;
+  const isPractice = mode === "practice";
   const correct = answers.filter((answer) => answer.isCorrect);
   const wrong = answers.filter((answer) => !answer.isCorrect);
   const inProgress = !attempt.completed_at;
@@ -51,6 +70,8 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
         <ArrowLeft className="size-4" aria-hidden="true" />
         {backLabel}
       </Link>
+
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
       {inProgress ? (
         <div className="card p-6 text-center">
@@ -72,7 +93,9 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
               </div>
 
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">Misi selesai</p>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+                  {isPractice ? "Latihan selesai" : "Misi selesai"}
+                </p>
                 <h1 className="mt-1 text-2xl font-black sm:text-3xl">{mission.title}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                   <Avatar avatarKey={result.student.avatarKey} size="sm" />
@@ -83,23 +106,30 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
                   <span className="font-bold text-ink">{accuracyLabel(accuracy)}</span>
                 </div>
 
-                <dl className="mt-4 grid grid-cols-3 gap-2.5">
+                <dl className={cn("mt-4 grid gap-2.5", isPractice ? "grid-cols-2" : "grid-cols-3")}>
                   <div className="rounded-2xl bg-paper px-3 py-2.5">
                     <dt className="text-[10px] font-bold uppercase tracking-wide text-muted">Benar</dt>
                     <dd className="text-lg font-black">
                       {attempt.correct_count}/{attempt.total_questions}
                     </dd>
                   </div>
-                  <div className="rounded-2xl bg-sun-soft px-3 py-2.5">
-                    <dt className="text-[10px] font-bold uppercase tracking-wide text-[#7a4a00]">XP didapat</dt>
-                    <dd className="text-lg font-black">{attempt.xp_earned}</dd>
-                  </div>
+                  {isPractice ? null : (
+                    <div className="rounded-2xl bg-sun-soft px-3 py-2.5">
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-[#7a4a00]">XP didapat</dt>
+                      <dd className="text-lg font-black">{attempt.xp_earned}</dd>
+                    </div>
+                  )}
                   <div className="rounded-2xl bg-primary-soft px-3 py-2.5">
                     <dt className="text-[10px] font-bold uppercase tracking-wide text-primary-strong">Akurasi</dt>
                     <dd className="text-lg font-black">{accuracy}%</dd>
                   </div>
                 </dl>
-                {attempt.xp_earned < xpPotential ? (
+                {isPractice ? (
+                  <p className="mt-2 rounded-xl bg-sky-soft px-3 py-2 text-xs leading-relaxed text-[#1d4b73]">
+                    Latihan tidak memberi XP dan tidak membuka misi baru. Jawaban di sini tetap tercatat untuk
+                    peta kemampuanmu.
+                  </p>
+                ) : attempt.xp_earned < xpPotential ? (
                   <p className="mt-2 rounded-xl bg-paper px-3 py-2 text-xs leading-relaxed text-muted">
                     Kamu sudah pernah mengumpulkan <strong className="text-ink">{previousBestXp} XP</strong> dari
                     misi ini. Percobaan ini menambah <strong className="text-ink">{attempt.xp_earned} XP</strong>{" "}
@@ -176,6 +206,18 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
                   <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-xs leading-relaxed text-muted">
                     Salah bukan berarti belum paham. Baca penjelasan di bawah, lalu ulangi misi ini kapan saja.
                   </p>
+                  {!isTeacher && !isPractice ? (
+                    <form action={startPracticeAction} className="mt-3">
+                      <input type="hidden" name="sourceAttemptId" value={attempt.id} />
+                      <Button type="submit" size="sm" variant="secondary">
+                        <RotateCcw className="size-4" aria-hidden="true" />
+                        Latih {wrongQuestionIds.length} soal ini saja
+                      </Button>
+                      <p className="mt-1.5 text-xs text-muted">
+                        Latihan tidak mengubah XP, jadi kamu bisa mencoba tanpa khawatir.
+                      </p>
+                    </form>
+                  ) : null}
                 </>
               )}
             </div>
@@ -249,14 +291,22 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
             </section>
           ) : (
           <section className="card p-5">
-            <h2 className="text-lg font-black">Langkah berikutnya</h2>
+            <h2 className="text-lg font-black">{isPractice ? "Latihan selesai" : "Langkah berikutnya"}</h2>
             <p className="mt-1 text-sm text-muted">
-              {accuracy >= 80
-                ? "Kamu siap melanjutkan ke misi berikutnya."
-                : "Ulangi misi ini untuk memperkuat pemahaman, atau lanjut dan kembali lagi nanti."}
+              {isPractice
+                ? "Soal yang tadinya salah sudah kamu coba lagi. Kalau masih ada yang belum tepat, ulangi latihan dari hasil misi terakhir."
+                : accuracy >= 80
+                  ? "Kamu siap melanjutkan ke misi berikutnya."
+                  : "Ulangi misi ini untuk memperkuat pemahaman, atau lanjut dan kembali lagi nanti."}
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              {nextMission ? (
+              {isPractice ? (
+                <ButtonLink href={`/misi/${mission.slug}`}>
+                  <Star className="size-4" aria-hidden="true" />
+                  Kembali ke misi {mission.title}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </ButtonLink>
+              ) : nextMission ? (
                 <ButtonLink href={`/misi/${nextMission.slug}`}>
                   <Star className="size-4" aria-hidden="true" />
                   Misi berikutnya: {nextMission.title}
@@ -268,13 +318,15 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </ButtonLink>
               )}
-              <form action={startMissionAction}>
-                <input type="hidden" name="slug" value={mission.slug} />
-                <Button type="submit" variant="secondary">
-                  <RotateCcw className="size-4" aria-hidden="true" />
-                  Ulangi misi ini
-                </Button>
-              </form>
+              {isPractice ? null : (
+                <form action={startMissionAction}>
+                  <input type="hidden" name="slug" value={mission.slug} />
+                  <Button type="submit" variant="secondary">
+                    <RotateCcw className="size-4" aria-hidden="true" />
+                    Ulangi misi ini
+                  </Button>
+                </form>
+              )}
               <ButtonLink href="/belajar" variant="ghost">
                 Ke peta misi
               </ButtonLink>

@@ -133,6 +133,8 @@ export async function saveQuestionAction(_prev: ActionState, formData: FormData)
     hint: String(formData.get("hint") ?? ""),
     difficulty: String(formData.get("difficulty") ?? "sedang"),
     orderIndex: formData.get("orderIndex") ?? 1,
+    topic: String(formData.get("topic") ?? "umum"),
+    slotIndex: formData.get("slotIndex") ?? undefined,
   };
 
   try {

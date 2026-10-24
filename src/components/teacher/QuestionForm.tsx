@@ -6,6 +6,7 @@ import { saveQuestionAction, type ActionState } from "@/app/actions/teacher";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { SELECTABLE_TOPICS } from "@/lib/topics";
 import type { QuestionRow } from "@/server/types";
 
 const MAX_OPTIONS = 6;
@@ -14,10 +15,12 @@ export function QuestionForm({
   missionId,
   question,
   nextOrder,
+  nextSlot,
 }: {
   missionId: string;
   question?: QuestionRow;
   nextOrder: number;
+  nextSlot: number;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(saveQuestionAction, null);
   const [type, setType] = useState<"multiple_choice" | "numeric">(question?.question_type ?? "multiple_choice");
@@ -38,7 +41,7 @@ export function QuestionForm({
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
       {state?.success ? <Alert tone="success">{state.success}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Jenis jawaban" htmlFor={`type-${question?.id ?? "baru"}`}>
           <select
             id={`type-${question?.id ?? "baru"}`}
@@ -65,7 +68,39 @@ export function QuestionForm({
           </select>
         </Field>
 
-        <Field label="Urutan soal" htmlFor={`order-${question?.id ?? "baru"}`}>
+        <Field label="Topik" htmlFor={`topic-${question?.id ?? "baru"}`}>
+          <select
+            id={`topic-${question?.id ?? "baru"}`}
+            name="topic"
+            defaultValue={question?.topic ?? "umum"}
+            className="input"
+          >
+            {SELECTABLE_TOPICS.map((topic) => (
+              <option key={topic.key} value={topic.key}>
+                {topic.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          label="Slot soal"
+          htmlFor={`slot-${question?.id ?? "baru"}`}
+          hint="Soal lain di slot yang sama menjadi varian. Satu varian dipilih acak tiap percobaan."
+        >
+          <input
+            id={`slot-${question?.id ?? "baru"}`}
+            name="slotIndex"
+            type="number"
+            min={1}
+            max={50}
+            defaultValue={question?.slot_index ?? nextSlot}
+            className="input"
+            required
+          />
+        </Field>
+
+        <Field label="Urutan tampil" htmlFor={`order-${question?.id ?? "baru"}`}>
           <input
             id={`order-${question?.id ?? "baru"}`}
             name="orderIndex"

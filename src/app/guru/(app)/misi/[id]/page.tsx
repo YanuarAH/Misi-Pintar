@@ -27,9 +27,10 @@ export default async function MissionEditorPage({
   const data = await getMissionForEdit(viewerOf(session), id, session.id);
   if (!data) notFound();
 
-  const { mission, questions, stats, publishIssues } = data;
+  const { mission, questions, stats, publishIssues, slotCount } = data;
   const canPublish = publishIssues.length === 0;
   const nextOrder = questions.length + 1;
+  const nextSlot = questions.reduce((max, question) => Math.max(max, question.slot_index), 0) + 1;
 
   return (
     <div className="space-y-5">
@@ -55,8 +56,9 @@ export default async function MissionEditorPage({
               </span>
               <span className="chip bg-paper">
                 <ListChecks className="size-3.5" aria-hidden="true" />
-                {questions.length} soal
+                {slotCount} soal per percobaan
               </span>
+              <span className="chip bg-paper">{questions.length} soal tersimpan</span>
               <span className="chip bg-paper">Urutan {mission.order_index}</span>
             </div>
             <h1 className="mt-2 text-2xl font-black">{mission.title}</h1>
@@ -138,7 +140,9 @@ export default async function MissionEditorPage({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-xl font-black">Soal ({questions.length})</h2>
-            <p className="text-sm text-muted">Urutan soal menentukan alur pengerjaan siswa.</p>
+            <p className="text-sm text-muted">
+              {slotCount} slot · siswa mengerjakan satu soal per slot, varian dipilih acak.
+            </p>
           </div>
         </div>
 
@@ -152,7 +156,7 @@ export default async function MissionEditorPage({
             <span className="hidden text-xs font-bold text-muted group-open:inline">Tutup</span>
           </summary>
           <div className="mt-4 border-t border-line pt-4">
-            <QuestionForm missionId={mission.id} nextOrder={nextOrder} />
+            <QuestionForm missionId={mission.id} nextOrder={nextOrder} nextSlot={nextSlot} />
           </div>
         </details>
 
@@ -172,6 +176,10 @@ export default async function MissionEditorPage({
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-sm font-bold leading-snug">{question.prompt}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="chip bg-primary-soft text-[10px] text-primary-strong">
+                        Slot {question.slot_index}
+                        {question.variant_index > 0 ? ` · varian ${question.variant_index + 1}` : ""}
+                      </span>
                       <span className="chip bg-paper text-[10px]">
                         {question.question_type === "multiple_choice" ? "Pilihan ganda" : "Jawaban angka"}
                       </span>
@@ -217,7 +225,12 @@ export default async function MissionEditorPage({
                     ) : null}
                   </div>
 
-                  <QuestionForm missionId={mission.id} question={question} nextOrder={nextOrder} />
+                  <QuestionForm
+                    missionId={mission.id}
+                    question={question}
+                    nextOrder={nextOrder}
+                    nextSlot={nextSlot}
+                  />
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
                     <Trash2 className="size-4 text-coral" aria-hidden="true" />

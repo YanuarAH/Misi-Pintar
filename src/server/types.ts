@@ -24,6 +24,9 @@ export type QuestionRow = {
   hint: string;
   difficulty: "mudah" | "sedang" | "tantangan";
   answer_unit: string;
+  topic: string;
+  slot_index: number;
+  variant_index: number;
   order_index: number;
   archived_at: Date | null;
 };
@@ -37,6 +40,8 @@ export type AttemptRow = {
   total_questions: number;
   xp_earned: number;
   question_ids: string[];
+  mode: "mission" | "practice";
+  source_attempt_id: string | null;
   started_at: Date;
   completed_at: Date | null;
 };
@@ -82,6 +87,7 @@ export type AttemptResult = {
   answers: {
     questionId: string;
     prompt: string;
+    topic: string;
     difficulty: string;
     isCorrect: boolean;
     submittedAnswer: string;
@@ -93,6 +99,11 @@ export type AttemptResult = {
   earnedAchievements: { key: string; earnedAt: Date }[];
   nextMission: { slug: string; title: string; unlocked: boolean } | null;
   accuracy: number;
+  /** 'practice' = latihan soal yang salah; tidak memberi XP dan tidak membuka misi. */
+  mode: "mission" | "practice";
+  sourceAttemptId: string | null;
+  /** Soal yang salah pada percobaan ini; dasar tombol "Latih soal yang salah". */
+  wrongQuestionIds: string[];
   xpTotal: number;
   /** XP penuh yang layak didapat dari hasil percobaan ini. */
   xpPotential: number;

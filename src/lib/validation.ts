@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AVATAR_KEYS } from "./avatars";
 import { parseNumericAnswer } from "./normalize";
+import { TOPIC_KEYS } from "./topics";
 
 const namePattern = /^[\p{L}\p{N} .,'-]+$/u;
 const pinPattern = /^\d{4,6}$/;
@@ -83,6 +84,9 @@ export type QuestionInput = {
   hint: string;
   difficulty: "mudah" | "sedang" | "tantangan";
   orderIndex: number;
+  topic: string;
+  /** Slot soal dalam misi; varian boleh berbagi slot yang sama. */
+  slotIndex?: number;
 };
 
 export const questionSchema = z
@@ -95,6 +99,9 @@ export const questionSchema = z
     hint: z.string().trim().max(300, "Petunjuk maksimal 300 karakter.").default(""),
     difficulty: z.enum(["mudah", "sedang", "tantangan"]),
     orderIndex: z.coerce.number().int().min(1).max(99),
+    topic: z.enum(TOPIC_KEYS as [string, ...string[]]).default("umum"),
+    /** Bila kosong, soal baru memakai slot = orderIndex (perilaku lama). */
+    slotIndex: z.coerce.number().int().min(1, "Slot minimal 1.").max(50, "Slot maksimal 50.").optional(),
   })
   .superRefine((value, ctx) => {
     if (value.questionType === "multiple_choice") {

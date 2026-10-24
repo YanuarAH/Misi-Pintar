@@ -31,8 +31,8 @@ uji ke database pengembangan atau produksi.**
 
 ```
 npx vitest run
-Test Files  8 passed (8)
-Tests       93 passed (93)
+Test Files  9 passed (9)
+Tests       106 passed (106)
 ```
 
 ## Matriks 15 skenario wajib
@@ -58,6 +58,10 @@ Tests       93 passed (93)
 | 13 | Siswa tidak bisa membaca jawaban sebelum menjawab | `tests/mission-flow.test.ts` (payload tanpa `correctAnswer`/`explanation`) |
 | 14 | Progres bertahan setelah sesi ditutup | Uji browser: logout → login → `/progres` tetap 120 XP; percobaan berjalan dilanjutkan (`startIndex` dari jawaban tersimpan) |
 | 15 | Tidak ada kebocoran kredensial/data pribadi | `tests/rls.test.ts` (`pin_hash`/`email` → `permission denied`), `sessions` tidak bisa dibaca role aplikasi, payload tanpa data siswa lain |
+| 16 | Bank soal varian: satu soal per slot, varian dipilih acak | `tests/topics-practice.test.ts` (describe "bank soal varian") |
+| 17 | Latihan soal salah tanpa XP/lencana dan tidak menambah penyelesaian | `tests/topics-practice.test.ts` (describe "latihan soal yang salah") |
+| 18 | Peta kemampuan per topik akurat dan hanya untuk siswa berhak | `tests/topics-practice.test.ts` (describe "peta kemampuan per topik") |
+| 19 | Guru bisa menambah varian/memindahkan slot; terbit butuh tiap slot valid | `tests/topics-practice.test.ts` (describe "guru mengelola slot dan topik", "validasi terbit per slot") |
 
 ## Cakupan per file
 
@@ -65,12 +69,13 @@ Tests       93 passed (93)
 | --- | --- |
 | `tests/normalize.test.ts` | Normalisasi angka Indonesia, pecahan, penolakan input ambigu, perbandingan pilihan ganda |
 | `tests/scoring.test.ts` | Skor, XP (10/benar + 20 bonus), label akurasi, aturan lencana |
-| `tests/content.test.ts` | 3 misi × 10 soal; struktur, pilihan unik, jawaban ∈ pilihan; **menghitung ulang 28 ekspresi aritmetika dengan rasional eksak**; keseimbangan posisi jawaban PG |
+| `tests/content.test.ts` | 3 misi × 10 soal; struktur, pilihan unik, jawaban ∈ pilihan; **menghitung ulang ekspresi aritmetika dengan rasional eksak**; keseimbangan posisi jawaban PG; 6 soal varian (slot, topik, aritmetika) |
 | `tests/seed-config.test.ts` | Aturan kredensial seed: default hanya untuk non-produksi, tolak password demo/pendek |
 | `tests/validation.test.ts` | Skema Zod soal/misi/pendaftaran + `questionIssues()` |
 | `tests/rls.test.ts` | RLS untuk anonim, siswa, guru; larangan menulis lintas pengguna; kolom sensitif tidak terbaca |
 | `tests/mission-flow.test.ts` | Siklus hidup percobaan, grading, XP, lencana, unlock, resume, idempotensi, imutabilitas |
 | `tests/teacher-access.test.ts` | Batas antar guru, validasi terbit, soft delete, ringkasan dasbor |
+| `tests/topics-practice.test.ts` | Pemilihan satu varian per slot, latihan dari soal salah (tanpa XP/lencana), isolasi latihan antarsiswa, peta kemampuan per topik, CRUD slot/topik guru, validasi terbit per slot |
 
 ## Uji manual yang sudah dijalankan
 
@@ -97,7 +102,8 @@ APP_URL=https://domain-anda npm run test:http
 
 Script `scripts/smoke.ts` membuat sesi sementara langsung di database (tanpa menyimpan password),
 lalu memeriksa: halaman publik 200, guard anonim mengembalikan 307, area siswa/guru dapat dibuka
-oleh peran yang tepat, dan data peran lain tidak ikut terkirim. Hasil terakhir: **15/15 lulus**.
+oleh peran yang tepat, dan data peran lain tidak ikut terkirim. Hasil terakhir: **17/17 lulus** (termasuk guard `/latihan` untuk pengguna anonim dan 404 untuk
+latihan milik siswa lain).
 
 ## Belum tercakup otomatis
 

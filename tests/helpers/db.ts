@@ -126,6 +126,11 @@ export type QuestionFixture = {
   difficulty?: "mudah" | "sedang" | "tantangan";
   orderIndex?: number;
   answerUnit?: string;
+  /** Slot soal; default = orderIndex. Soal dengan slot sama menjadi varian. */
+  slot?: number;
+  topic?: string;
+  /** Varian ke-berapa dalam slot; default dihitung otomatis per slot. */
+  variant?: number;
 };
 
 export async function createMission(options: {
@@ -153,12 +158,17 @@ export async function createMission(options: {
   );
 
   let order = 0;
+  const perSlot = new Map<number, number>();
   for (const question of options.questions) {
     order += 1;
+    const slot = question.slot ?? question.orderIndex ?? order;
+    const variant = question.variant ?? (perSlot.get(slot) ?? 0);
+    perSlot.set(slot, variant + 1);
     await adminQuery(
       `insert into questions
-         (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty, order_index, answer_unit)
-       values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
+         (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty,
+          order_index, answer_unit, slot_index, variant_index, topic)
+       values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         mission.id,
         question.questionType,
@@ -170,6 +180,9 @@ export async function createMission(options: {
         question.difficulty ?? "sedang",
         question.orderIndex ?? order,
         question.answerUnit ?? "",
+        slot,
+        variant,
+        question.topic ?? "umum",
       ],
     );
   }

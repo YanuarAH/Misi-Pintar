@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { seedMissions } from "../db/seed/content";
+import { seedMissions, seedVariants } from "../db/seed/content";
 import { parseNumericAnswer } from "@/lib/normalize";
 import { isChoiceAnswerCorrect } from "@/lib/normalize";
 
@@ -245,6 +245,57 @@ describe("konten pembelajaran", () => {
     for (const position of [1, 2, 3, 4]) {
       expect(total[position], `posisi ${position} terlalu jarang dipakai`).toBeGreaterThanOrEqual(2);
       expect(total[position], `posisi ${position} terlalu sering dipakai`).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
+describe("bank soal varian", () => {
+  const variants = Object.entries(seedVariants);
+
+  it("setiap varian mengisi slot yang sudah ada di misinya", () => {
+    expect(variants.length).toBeGreaterThanOrEqual(3);
+    for (const [slug, list] of variants) {
+      const mission = seedMissions.find((item) => item.slug === slug);
+      expect(mission, `misi ${slug} tidak ditemukan`).toBeDefined();
+      for (const variant of list) {
+        expect(variant.slot).toBeGreaterThanOrEqual(1);
+        expect(variant.slot).toBeLessThanOrEqual(mission!.questions.length);
+        expect(variant.topic).toBe(mission!.questionTopics[variant.slot - 1]);
+        expect(variant.prompt.length).toBeGreaterThan(20);
+        expect(variant.explanation.length).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it("varian pilihan ganda punya pilihan unik yang memuat jawaban", () => {
+    for (const [, list] of variants) {
+      for (const variant of list) {
+        if (variant.type !== "multiple_choice") continue;
+        const options = variant.options ?? [];
+        expect(options.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(options.map((option) => option.toLowerCase())).size).toBe(options.length);
+        expect(options.some((option) => isChoiceAnswerCorrect(option, variant.answer))).toBe(true);
+      }
+    }
+  });
+
+  it("varian angka punya jawaban numerik dan ekspresi verifikasi yang cocok", () => {
+    for (const [, list] of variants) {
+      for (const variant of list) {
+        if (variant.type === "numeric") {
+          expect(parseNumericAnswer(variant.answer)).not.toBeNull();
+          expect(variant.options ?? []).toHaveLength(0);
+        }
+        if (!variant.verification) continue;
+        const expected = parseExpression(variant.verification.expression);
+        const actual = extractAnswerValue(variant.answer);
+        expect(actual, `${variant.prompt} tidak punya angka pada jawaban`).not.toBeNull();
+        const difference = sub(expected, actual!);
+        expect(
+          difference.n === 0n,
+          `${variant.prompt}: "${variant.answer}" vs ${variant.verification.expression}`,
+        ).toBe(true);
+      }
     }
   });
 });

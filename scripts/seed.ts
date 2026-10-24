@@ -8,7 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { seedMissions } from "../db/seed/content";
+import { seedMissions, seedVariants, type SeedQuestion } from "../db/seed/content";
 import { hashSecret } from "../src/lib/password";
 import { loadEnv, requireEnv } from "./lib/env";
 import { resolveTeacherSeedCredentials } from "./lib/seed-config";
@@ -133,39 +133,67 @@ async function main() {
       }
       missionIds.set(mission.slug, missionId);
 
+      // Slot 1..n = soal utama; varian mengisi slot yang sama dan dipilih acak saat bermain.
+      const slots: { slot: number; orderIndex: number; topic: string; variant: number; data: SeedQuestion }[] = [];
+
       for (const [index, question] of mission.questions.entries()) {
-        const orderIndex = index + 1;
+        slots.push({
+          slot: index + 1,
+          orderIndex: index + 1,
+          topic: mission.questionTopics[index] ?? "umum",
+          variant: 0,
+          data: question,
+        });
+      }
+      for (const variant of seedVariants[mission.slug] ?? []) {
+        const variantIndex = slots.filter((item) => item.slot === variant.slot).length;
+        slots.push({
+          slot: variant.slot,
+          orderIndex: variant.slot,
+          topic: variant.topic,
+          variant: variantIndex,
+          data: variant,
+        });
+      }
+
+      for (const item of slots) {
         const existingQuestion = await client.query<{ id: string }>(
-          "select id from questions where mission_id = $1 and order_index = $2 and archived_at is null",
-          [missionId, orderIndex],
+          `select id from questions
+            where mission_id = $1 and slot_index = $2 and variant_index = $3 and archived_at is null`,
+          [missionId, item.slot, item.variant],
         );
 
         const values = [
           missionId,
-          question.type,
-          question.prompt,
-          question.options ? JSON.stringify(question.options) : null,
-          question.answer,
-          question.explanation,
-          question.hint,
-          question.difficulty,
-          orderIndex,
-          question.unitLabel ?? "",
+          item.data.type,
+          item.data.prompt,
+          item.data.options ? JSON.stringify(item.data.options) : null,
+          item.data.answer,
+          item.data.explanation,
+          item.data.hint,
+          item.data.difficulty,
+          item.orderIndex,
+          item.data.unitLabel ?? "",
+          item.slot,
+          item.variant,
+          item.topic,
         ];
 
         if (!existingQuestion.rows[0]) {
           await client.query(
             `insert into questions
-               (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty, order_index, answer_unit)
-             values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)`,
+               (mission_id, question_type, prompt, options, correct_answer, explanation, hint, difficulty,
+                order_index, answer_unit, slot_index, variant_index, topic)
+             values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
             values,
           );
         } else if (force) {
           await client.query(
             `update questions
                 set mission_id = $1, question_type = $2, prompt = $3, options = $4::jsonb, correct_answer = $5,
-                    explanation = $6, hint = $7, difficulty = $8, order_index = $9, answer_unit = $10
-              where id = $11`,
+                    explanation = $6, hint = $7, difficulty = $8, order_index = $9, answer_unit = $10,
+                    slot_index = $11, variant_index = $12, topic = $13
+              where id = $14`,
             [...values, existingQuestion.rows[0].id],
           );
         }
@@ -188,8 +216,10 @@ async function main() {
             options: string[] | null;
             correct_answer: string;
           }>(
-            `select id, question_type, options, correct_answer from questions
-              where mission_id = $1 and archived_at is null order by order_index asc`,
+            `select distinct on (slot_index) id, question_type, options, correct_answer
+               from questions
+              where mission_id = $1 and archived_at is null
+              order by slot_index asc, variant_index asc`,
             [firstMissionId],
           );
 
@@ -232,11 +262,14 @@ async function main() {
 
     await client.query("commit");
 
-    const counts = await client.query<{ missions: string; questions: string }>(
+    const counts = await client.query<{ missions: string; questions: string; slots: string }>(
       `select (select count(*) from missions where archived_at is null)::text as missions,
-              (select count(*) from questions where archived_at is null)::text as questions`,
+              (select count(*) from questions where archived_at is null)::text as questions,
+              (select count(distinct (mission_id, slot_index)) from questions where archived_at is null)::text as slots`,
     );
-    console.log(`Seed selesai: ${counts.rows[0].missions} misi, ${counts.rows[0].questions} soal.`);
+    console.log(
+      `Seed selesai: ${counts.rows[0].missions} misi, ${counts.rows[0].questions} soal dalam ${counts.rows[0].slots} slot.`,
+    );
     if (allowDemo) {
       console.log("");
       console.log("Akun demo:");

@@ -6,6 +6,7 @@ import {
   cancelAttempt,
   completeAttempt,
   startOrResumeAttempt,
+  startPracticeAttempt,
   submitAnswer,
   updateStudentProfile,
 } from "@/server/student";
@@ -90,6 +91,21 @@ export async function completeAttemptAction(attemptId: string): Promise<{ ok: bo
     console.error("completeAttemptAction", error);
     return { ok: false, error: "Hasil misi gagal disimpan. Coba lagi, ya." };
   }
+}
+
+/** Memulai latihan dari soal yang salah pada percobaan tertentu. */
+export async function startPracticeAction(formData: FormData): Promise<void> {
+  const session = await getSession();
+  if (!session || session.role !== "student") redirect("/masuk");
+
+  const sourceAttemptId = String(formData.get("sourceAttemptId") ?? "");
+  const result = await startPracticeAttempt({ userId: session.id, role: "student" }, session.id, sourceAttemptId);
+
+  if (!result.ok) {
+    redirect(`/hasil/${sourceAttemptId}?error=${encodeURIComponent(result.reason)}`);
+  }
+
+  redirect(`/latihan/${result.attemptId}`);
 }
 
 /** Membatalkan percobaan yang masih berjalan (mis. siswa keluar di tengah misi). */

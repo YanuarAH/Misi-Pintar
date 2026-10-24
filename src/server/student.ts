@@ -2,6 +2,7 @@ import { isChoiceAnswerCorrect, isNumericAnswerCorrect } from "@/lib/normalize";
 import { computeScore, computeXp, XP_MISSION_BONUS, XP_PER_CORRECT } from "@/lib/scoring";
 import { evaluateAchievements, type AchievementKey } from "@/lib/achievements";
 import { one, rows, withViewer, type Viewer } from "@/lib/db";
+import { masteryLevel, TOPICS, topicOrder, type MasteryLevel } from "@/lib/topics";
 import type { AttemptRow, MissionCard, MissionRow, PlayQuestion, AttemptResult } from "./types";
 
 export type MissionProgressRow = {
@@ -21,16 +22,21 @@ export type MissionProgressRow = {
 
 const MISSION_PROGRESS_SQL = `
   select m.id, m.slug, m.title, m.description, m.order_index, m.is_published,
-         (select count(*) from questions q where q.mission_id = m.id and q.archived_at is null) as question_count,
+         (select count(distinct q.slot_index) from questions q
+            where q.mission_id = m.id and q.archived_at is null) as question_count,
          (select count(*) from attempts a
-            where a.mission_id = m.id and a.student_id = $1 and a.completed_at is not null) as attempt_count,
+            where a.mission_id = m.id and a.student_id = $1
+              and a.mode = 'mission' and a.completed_at is not null) as attempt_count,
          (select max(a.score) from attempts a
-            where a.mission_id = m.id and a.student_id = $1 and a.completed_at is not null) as best_score,
+            where a.mission_id = m.id and a.student_id = $1
+              and a.mode = 'mission' and a.completed_at is not null) as best_score,
          (select a.score from attempts a
-            where a.mission_id = m.id and a.student_id = $1 and a.completed_at is not null
+            where a.mission_id = m.id and a.student_id = $1
+              and a.mode = 'mission' and a.completed_at is not null
             order by a.completed_at desc limit 1) as last_score,
          (select a.id from attempts a
-            where a.mission_id = m.id and a.student_id = $1 and a.completed_at is null limit 1) as open_attempt_id
+            where a.mission_id = m.id and a.student_id = $1
+              and a.mode = 'mission' and a.completed_at is null limit 1) as open_attempt_id
   from missions m
   where m.archived_at is null and m.is_published
   order by m.order_index asc
@@ -95,7 +101,7 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
     viewer,
     `select a.id, m.title, m.slug, a.score, a.completed_at
        from attempts a join missions m on m.id = a.mission_id
-      where a.student_id = $1 and a.completed_at is not null
+      where a.student_id = $1 and a.mode = 'mission' and a.completed_at is not null
       order by a.completed_at desc limit 3`,
     [studentId],
   );
@@ -158,6 +164,7 @@ export async function getMissionDetail(viewer: Viewer, studentId: string, slug: 
 
 export type PlayState = {
   attemptId: string;
+  mode: "mission" | "practice";
   mission: { id: string; slug: string; title: string; story: string; objectives: string[] };
   questions: PlayQuestion[];
   answeredIndexes: number[];
@@ -215,6 +222,7 @@ async function buildPlayState(
 
   return {
     attemptId: attempt.id,
+    mode: attempt.mode,
     mission: {
       id: mission.id,
       slug: mission.slug,
@@ -272,9 +280,13 @@ export async function startOrResumeAttempt(viewer: Viewer, studentId: string, sl
   let attempt = await findOpenAttempt(viewer, studentId, mission.id);
 
   if (!attempt) {
+    // Satu soal acak per slot: variasi soal antarpercobaan tanpa mengubah jumlah soal.
     const questions = await rows<{ id: string }>(
       viewer,
-      "select id from questions where mission_id = $1 and archived_at is null order by order_index asc",
+      `select distinct on (slot_index) id
+         from questions
+        where mission_id = $1 and archived_at is null
+        order by slot_index asc, random()`,
       [mission.id],
     );
     const questionIds = questions.map((row) => row.id);
@@ -319,6 +331,64 @@ export async function cancelAttempt(
   );
   if (!deleted) return { ok: false, reason: "Percobaan ini tidak bisa dibatalkan." };
   return { ok: true };
+}
+
+/**
+ * Memulai latihan dari soal yang salah pada satu percobaan selesai.
+ * Percobaan latihan tidak memberi XP, tidak memberi lencana, dan tidak membuka misi
+ * berikutnya, tetapi jawabannya tercatat untuk peta kemampuan.
+ */
+export async function startPracticeAttempt(
+  viewer: Viewer,
+  studentId: string,
+  sourceAttemptId: string,
+): Promise<{ ok: true; attemptId: string } | { ok: false; reason: string }> {
+  const source = await one<AttemptRow>(
+    viewer,
+    "select * from attempts where id = $1 and student_id = $2 and completed_at is not null",
+    [sourceAttemptId, studentId],
+  );
+  if (!source) return { ok: false, reason: "Percobaan tidak ditemukan." };
+  if (source.mode === "practice") return { ok: false, reason: "Pilih percobaan misi untuk membuat latihan." };
+
+  const wrong = await rows<{ question_id: string }>(
+    viewer,
+    "select question_id from attempt_answers where attempt_id = $1 and not is_correct order by answered_at asc",
+    [source.id],
+  );
+  if (wrong.length === 0) {
+    return { ok: false, reason: "Tidak ada soal yang salah di percobaan ini. Kerja bagus!" };
+  }
+
+  const questionIds = wrong.map((row) => row.question_id);
+  const created = await one<AttemptRow>(
+    viewer,
+    `insert into attempts (student_id, mission_id, total_questions, question_ids, mode, source_attempt_id)
+     values ($1, $2, $3, $4, 'practice', $5)
+     returning *`,
+    [studentId, source.mission_id, questionIds.length, questionIds, source.id],
+  );
+  if (!created) return { ok: false, reason: "Latihan gagal dimulai. Coba lagi." };
+  return { ok: true, attemptId: created.id };
+}
+
+/** State latihan; hanya boleh dibaca pemiliknya. */
+export async function getPracticeState(
+  viewer: Viewer,
+  studentId: string,
+  attemptId: string,
+): Promise<PlayState | null> {
+  const attempt = await one<AttemptRow>(
+    viewer,
+    "select * from attempts where id = $1 and student_id = $2 and mode = 'practice'",
+    [attemptId, studentId],
+  );
+  if (!attempt) return null;
+
+  const mission = await one<MissionRow>(viewer, "select * from missions where id = $1", [attempt.mission_id]);
+  if (!mission) return null;
+
+  return buildPlayState(viewer, mission, attempt);
 }
 
 /** Membaca percobaan berjalan tanpa menulis apa pun. Aman dipanggil saat render GET. */
@@ -437,6 +507,18 @@ export async function completeAttempt(
     const correctCount = Math.min(Number(answerStats.rows[0]?.correct ?? 0), total);
     const score = computeScore(correctCount, total);
 
+    if (attempt.mode === "practice") {
+      const updatedPractice = await client.query<AttemptRow>(
+        `update attempts
+            set completed_at = now(), score = $2, correct_count = $3, total_questions = $4, xp_earned = 0
+          where id = $1
+          returning *`,
+        [attempt.id, score, correctCount, total],
+      );
+      if (!updatedPractice.rows[0]) return { ok: false as const, reason: "Gagal menyimpan hasil latihan." };
+      return { ok: true as const, attemptId: attempt.id };
+    }
+
     // XP dihitung dari peningkatan rekor, bukan diakumulasi tiap pengulangan.
     // Total XP per misi karena itu tidak pernah melebihi satu kali nilai penuh (maks. 120).
     const priorBestResult = await client.query<{ best: string | null }>(
@@ -516,6 +598,7 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
   const answers = await rows<{
     question_id: string;
     prompt: string;
+    topic: string;
     difficulty: string;
     is_correct: boolean;
     submitted_answer: string;
@@ -525,7 +608,7 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     order_index: number;
   }>(
     viewer,
-    `select aa.question_id, q.prompt, q.difficulty, aa.is_correct, aa.submitted_answer,
+    `select aa.question_id, q.prompt, q.topic, q.difficulty, aa.is_correct, aa.submitted_answer,
             q.correct_answer, q.explanation, q.answer_unit, q.order_index
        from attempt_answers aa join questions q on q.id = aa.question_id
       where aa.attempt_id = $1 order by q.order_index asc`,
@@ -578,6 +661,7 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     answers: answers.map((row) => ({
       questionId: row.question_id,
       prompt: row.prompt,
+      topic: row.topic,
       difficulty: row.difficulty,
       isCorrect: row.is_correct,
       submittedAnswer: row.submitted_answer,
@@ -589,10 +673,58 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     earnedAchievements: achievements.map((row) => ({ key: row.achievement_key, earnedAt: new Date(row.earned_at) })),
     nextMission: nextRow ? { slug: nextRow.slug, title: nextRow.title, unlocked: nextUnlocked } : null,
     accuracy: attempt.total_questions ? Math.round((attempt.correct_count / attempt.total_questions) * 100) : 0,
+    mode: attempt.mode,
+    sourceAttemptId: attempt.source_attempt_id,
+    wrongQuestionIds: answers.filter((row) => !row.is_correct).map((row) => row.question_id),
     xpTotal: Number(xpTotal?.xp ?? 0),
     xpPotential: computeXp(attempt.correct_count, true),
     previousBestXp: Number(priorBest?.best ?? 0),
   };
+}
+
+export type TopicMastery = {
+  key: string;
+  label: string;
+  answers: number;
+  correct: number;
+  accuracy: number | null;
+  level: MasteryLevel;
+};
+
+/**
+ * Akurasi per topik dari jawaban yang benar-benar dikirim siswa.
+ * Latihan ikut dihitung karena tujuannya memperkuat topik yang sama.
+ */
+export async function getTopicMastery(viewer: Viewer, studentId: string): Promise<TopicMastery[]> {
+  const data = await rows<{ topic: string; answers: string; correct: string }>(
+    viewer,
+    `select q.topic,
+            count(*)::text as answers,
+            count(*) filter (where aa.is_correct)::text as correct
+       from attempt_answers aa
+       join questions q on q.id = aa.question_id
+       join attempts a on a.id = aa.attempt_id
+      where a.student_id = $1 and a.completed_at is not null
+      group by q.topic`,
+    [studentId],
+  );
+
+  const byTopic = new Map(data.map((row) => [row.topic, row]));
+
+  return TOPICS.map((topic) => {
+    const row = byTopic.get(topic.key);
+    const answers = Number(row?.answers ?? 0);
+    const correct = Number(row?.correct ?? 0);
+    const accuracy = answers > 0 ? Math.round((correct / answers) * 100) : null;
+    return {
+      key: topic.key,
+      label: topic.label,
+      answers,
+      correct,
+      accuracy,
+      level: masteryLevel(accuracy, answers),
+    };
+  }).sort((a, b) => topicOrder(a.key) - topicOrder(b.key));
 }
 
 export type ProgressView = {
@@ -611,7 +743,9 @@ export type ProgressView = {
     xpEarned: number;
     completedAt: Date | null;
     inProgress: boolean;
+    mode: "mission" | "practice";
   }[];
+  topics: TopicMastery[];
   perMission: { slug: string; title: string; lastScore: number | null; bestScore: number | null; attempts: number; unlocked: boolean }[];
 };
 
@@ -640,9 +774,10 @@ export async function getProgress(viewer: Viewer, studentId: string): Promise<Pr
     answered_count: string;
     xp_earned: number;
     completed_at: Date | null;
+    mode: "mission" | "practice";
   }>(
     viewer,
-    `select a.id, m.title, m.slug, a.score, a.correct_count, a.total_questions, a.xp_earned, a.completed_at,
+    `select a.id, m.title, m.slug, a.score, a.correct_count, a.total_questions, a.xp_earned, a.completed_at, a.mode,
             (select count(*) from attempt_answers aa where aa.attempt_id = a.id) as answered_count
        from attempts a join missions m on m.id = a.mission_id
       where a.student_id = $1 order by a.started_at desc limit 30`,
@@ -665,7 +800,9 @@ export async function getProgress(viewer: Viewer, studentId: string): Promise<Pr
       xpEarned: row.xp_earned,
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
       inProgress: row.completed_at === null,
+      mode: row.mode,
     })),
+    topics: await getTopicMastery(viewer, studentId),
     perMission: cards.map((card) => ({
       slug: card.slug,
       title: card.title,
