@@ -93,6 +93,9 @@ describe("validasi misi & pendaftaran", () => {
       story: "Cerita",
       learningObjectives: ["Tujuan satu"],
       orderIndex: 1,
+      gradeLevel: 5,
+      subject: "matematika",
+      topic: "pecahan",
     };
     expect(missionSchema.safeParse({ ...base, slug: "Misi Baru" }).success).toBe(false);
     expect(missionSchema.safeParse({ ...base, slug: "misi-baru" }).success).toBe(true);

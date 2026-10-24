@@ -139,6 +139,9 @@ describe("pengelolaan konten oleh guru", () => {
       story: "Cerita",
       learningObjectives: ["Tujuan"],
       orderIndex: 9,
+      gradeLevel: 5,
+      subject: "matematika",
+      topic: "pecahan",
     });
     const created = await createMission(viewerA(), teacherA.id, input);
     await expect(setMissionPublished(viewerA(), created.id, true)).rejects.toThrow(/belum punya soal/i);
@@ -167,6 +170,9 @@ describe("pengelolaan konten oleh guru", () => {
       story: "Cerita uji",
       learningObjectives: ["Tujuan uji"],
       orderIndex: 10,
+      gradeLevel: 5,
+      subject: "matematika",
+      topic: "pecahan",
     });
     const created = await createMission(viewerA(), teacherA.id, input);
 

@@ -14,6 +14,8 @@ import {
   regenerateJoinCode,
   removeClassMember,
   resetStudentPin,
+  setClassGrade,
+  setMissionClasses,
   setMissionPublished,
   updateMission,
   updateQuestion,
@@ -51,6 +53,9 @@ export async function saveMissionAction(_prev: ActionState, formData: FormData):
       .map((line) => line.trim())
       .filter(Boolean),
     orderIndex: formData.get("orderIndex") ?? 1,
+    gradeLevel: formData.get("gradeLevel") ?? "",
+    subject: formData.get("subject") ?? "",
+    topic: formData.get("topic") ?? "",
   });
 
   if (!parsed.success) return { error: firstIssue(parsed.error) };
@@ -111,6 +116,27 @@ export async function archiveMissionAction(formData: FormData): Promise<void> {
   revalidatePath("/guru/misi");
   revalidatePath("/belajar");
   redirect("/guru/misi");
+}
+
+/** Menyimpan daftar kelas belajar yang ditugaskan untuk satu misi. */
+export async function setMissionClassesAction(formData: FormData): Promise<void> {
+  const session = await teacherSession();
+  if (!session) redirect("/guru/login");
+
+  const missionId = String(formData.get("missionId") ?? "");
+  const classIds = formData.getAll("classId").map((value) => String(value));
+
+  try {
+    await setMissionClasses(viewerFor(session), session.id, missionId, classIds);
+  } catch (error) {
+    const message = error instanceof TeacherError ? error.message : "Penugasan gagal disimpan.";
+    redirectWithError(`/guru/misi/${missionId}`, message);
+  }
+
+  revalidatePath(`/guru/misi/${missionId}`);
+  revalidatePath("/guru/misi");
+  revalidatePath("/belajar");
+  redirect(`/guru/misi/${missionId}?tersimpan=kelas`);
 }
 
 /* --------------------------------- Soal ---------------------------------- */
@@ -181,11 +207,14 @@ export async function createClassAction(_prev: ActionState, formData: FormData):
   const session = await teacherSession();
   if (!session) return { error: "Sesi guru berakhir." };
 
-  const parsed = classSchema.safeParse({ name: formData.get("name") ?? "" });
+  const parsed = classSchema.safeParse({
+    name: formData.get("name") ?? "",
+    gradeLevel: formData.get("gradeLevel") ?? "",
+  });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   try {
-    await createClass(viewerFor(session), session.id, parsed.data.name);
+    await createClass(viewerFor(session), session.id, parsed.data.name, parsed.data.gradeLevel);
   } catch (error) {
     console.error("createClassAction", error);
     return { error: error instanceof TeacherError ? error.message : "Kelas gagal dibuat." };
@@ -194,6 +223,27 @@ export async function createClassAction(_prev: ActionState, formData: FormData):
   revalidatePath("/guru/kelas");
   revalidatePath("/guru/dashboard");
   return { success: "Kelas baru dibuat. Bagikan kode kelas kepada siswa." };
+}
+
+/** Mengatur/mengubah tingkat kelas dari kelas belajar (termasuk kelas lama). */
+export async function setClassGradeAction(formData: FormData): Promise<void> {
+  const session = await teacherSession();
+  if (!session) redirect("/guru/login");
+
+  const classId = String(formData.get("classId") ?? "");
+  const gradeLevel = Number(formData.get("gradeLevel") ?? 0);
+
+  try {
+    await setClassGrade(viewerFor(session), classId, gradeLevel);
+  } catch (error) {
+    const message = error instanceof TeacherError ? error.message : "Tingkat kelas gagal disimpan.";
+    redirectWithError(`/guru/kelas/${classId}`, message);
+  }
+
+  revalidatePath(`/guru/kelas/${classId}`);
+  revalidatePath("/guru/kelas");
+  revalidatePath("/belajar");
+  redirect(`/guru/kelas/${classId}?kelasDiatur=1`);
 }
 
 export async function regenerateJoinCodeAction(formData: FormData): Promise<void> {

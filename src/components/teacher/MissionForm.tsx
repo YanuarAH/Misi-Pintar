@@ -7,6 +7,8 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import type { MissionRow } from "@/server/types";
+import type { CurriculumOptions } from "@/server/teacher";
+import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 
 function slugify(value: string): string {
   return value
@@ -19,11 +21,20 @@ function slugify(value: string): string {
     .slice(0, 60);
 }
 
-export function MissionForm({ mission }: { mission?: MissionRow }) {
+export function MissionForm({
+  mission,
+  options,
+}: {
+  mission?: MissionRow;
+  options: CurriculumOptions;
+}) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(saveMissionAction, null);
   const [slug, setSlug] = useState(mission?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(mission?.slug));
   const [title, setTitle] = useState(mission?.title ?? "");
+  const [subject, setSubject] = useState(mission?.subject_slug ?? options.subjects[0]?.slug ?? "");
+  const [topic, setTopic] = useState(mission?.topic_slug ?? "");
+  const topics = options.subjects.find((item) => item.slug === subject)?.topics ?? [];
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -75,6 +86,73 @@ export function MissionForm({ mission }: { mission?: MissionRow }) {
             />
           </Field>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-paper/60 p-3.5">
+        <p className="text-xs font-black uppercase tracking-wide text-muted">Kategori pembelajaran</p>
+        <div className="mt-2.5 grid gap-3 sm:grid-cols-3">
+          <Field label="Tingkat kelas" htmlFor="gradeLevel" hint="Siswa hanya menerima misi tingkat kelasnya.">
+            <select
+              id="gradeLevel"
+              name="gradeLevel"
+              defaultValue={mission?.grade_level ?? ""}
+              className="input"
+              required
+            >
+              <option value="" disabled>
+                Pilih tingkat
+              </option>
+              {GRADE_LEVELS.map((grade) => (
+                <option key={grade} value={grade}>
+                  {gradeLabel(grade)}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Mata pelajaran" htmlFor="subject">
+            <select
+              id="subject"
+              name="subject"
+              value={subject}
+              onChange={(event) => {
+                setSubject(event.target.value);
+                setTopic("");
+              }}
+              className="input"
+              required
+            >
+              {options.subjects.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Topik / materi" htmlFor="topic" hint="Topik dari mata pelajaran yang dipilih.">
+            <select
+              id="topic"
+              name="topic"
+              value={topic}
+              onChange={(event) => setTopic(event.target.value)}
+              className="input"
+              required
+            >
+              <option value="" disabled>
+                Pilih topik
+              </option>
+              {topics.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Tingkat kelas berbeda dari kelas belajar (mis. 5A). Kelas belajar diatur di menu Kelas &amp; siswa.
+        </p>
       </div>
 
       <Field label="Deskripsi singkat" htmlFor="description" hint="Tampil di peta misi. Maksimal 600 karakter.">

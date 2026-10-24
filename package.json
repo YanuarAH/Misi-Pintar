@@ -12,6 +12,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "tsx scripts/migrate.ts --reset && tsx scripts/seed.ts",
     "db:cleanup": "tsx scripts/cleanup.ts",
+    "db:audit-kurikulum": "tsx scripts/audit-kurikulum.ts",
     "db:start": "tsx scripts/dev-db.ts start",
     "db:stop": "tsx scripts/dev-db.ts stop",
     "test": "vitest run",

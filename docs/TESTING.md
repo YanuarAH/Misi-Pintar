@@ -31,8 +31,8 @@ uji ke database pengembangan atau produksi.**
 
 ```
 npx vitest run
-Test Files  9 passed (9)
-Tests       106 passed (106)
+Test Files  10 passed (10)
+Tests       124 passed (124)
 ```
 
 ## Matriks 15 skenario wajib
@@ -62,6 +62,13 @@ Tests       106 passed (106)
 | 17 | Latihan soal salah tanpa XP/lencana dan tidak menambah penyelesaian | `tests/topics-practice.test.ts` (describe "latihan soal yang salah") |
 | 18 | Peta kemampuan per topik akurat dan hanya untuk siswa berhak | `tests/topics-practice.test.ts` (describe "peta kemampuan per topik") |
 | 19 | Guru bisa menambah varian/memindahkan slot; terbit butuh tiap slot valid | `tests/topics-practice.test.ts` (describe "guru mengelola slot dan topik", "validasi terbit per slot") |
+| 20 | Guru membuat misi Kelas 2 & Kelas 5 di satu akun; daftar bisa difilter | `tests/kelas-kurikulum.test.ts` (describe "tingkat kelas vs kelas belajar") |
+| 21 | Soal tiap misi tidak tercampur | `tests/kelas-kurikulum.test.ts` ("isolasi soal antar misi") |
+| 22 | Misi Kelas 5 tidak bisa ditugaskan ke kelas Kelas 2 (UI & trigger DB) | `tests/kelas-kurikulum.test.ts` ("penugasan misi ke kelas belajar") |
+| 23 | Satu misi bisa ditugaskan ke beberapa kelas bertingkat sama | sama, "satu misi dapat ditugaskan ke beberapa kelas" |
+| 24 | Siswa hanya melihat misi tingkatnya / yang ditugaskan; draf sembunyi | `tests/kelas-kurikulum.test.ts` (describe "akses siswa ke misi") |
+| 25 | Riwayat lama tetap terbaca setelah kategori berubah | `tests/kelas-kurikulum.test.ts` ("percobaan dan progres lama tetap dapat dibuka") |
+| 26 | RLS penugasan & soal lintas tingkat | `tests/kelas-kurikulum.test.ts` (describe "keamanan akses") |
 
 ## Cakupan per file
 
@@ -76,6 +83,7 @@ Tests       106 passed (106)
 | `tests/mission-flow.test.ts` | Siklus hidup percobaan, grading, XP, lencana, unlock, resume, idempotensi, imutabilitas |
 | `tests/teacher-access.test.ts` | Batas antar guru, validasi terbit, soft delete, ringkasan dasbor |
 | `tests/topics-practice.test.ts` | Pemilihan satu varian per slot, latihan dari soal salah (tanpa XP/lencana), isolasi latihan antarsiswa, peta kemampuan per topik, CRUD slot/topik guru, validasi terbit per slot |
+| `tests/kelas-kurikulum.test.ts` | Tingkat kelas vs kelas belajar, filter daftar misi, isolasi soal, penugasan misi (termasuk penolakan lintas tingkat & trigger DB), akses siswa, misi belum dikategorikan, riwayat lama, CRUD + arsip, RLS penugasan |
 
 ## Uji manual yang sudah dijalankan
 

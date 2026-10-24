@@ -12,6 +12,9 @@ export type MissionProgressRow = {
   description: string;
   order_index: number;
   is_published: boolean;
+  grade_level: number | null;
+  subject_label: string | null;
+  topic_label: string | null;
   question_count: string;
   attempt_count: string;
   best_score: number | null;
@@ -20,8 +23,11 @@ export type MissionProgressRow = {
   completed_any: boolean;
 };
 
+// Misi yang ditampilkan hanya misi yang boleh dilihat siswa ini: terbit, sudah punya
+// tingkat kelas, sesuai tingkat kelasnya, dan (bila ditugaskan) termasuk kelasnya.
 const MISSION_PROGRESS_SQL = `
   select m.id, m.slug, m.title, m.description, m.order_index, m.is_published,
+         m.grade_level, s.label as subject_label, t.label as topic_label,
          (select count(distinct q.slot_index) from questions q
             where q.mission_id = m.id and q.archived_at is null) as question_count,
          (select count(*) from attempts a
@@ -38,23 +44,35 @@ const MISSION_PROGRESS_SQL = `
             where a.mission_id = m.id and a.student_id = $1
               and a.mode = 'mission' and a.completed_at is null limit 1) as open_attempt_id
   from missions m
+  left join subjects s on s.slug = m.subject_slug
+  left join mission_topics t on t.slug = m.topic_slug
   where m.archived_at is null and m.is_published
-  order by m.order_index asc
+    and public.app_mission_available(m.id)
+  order by m.grade_level asc nulls last, m.order_index asc
 `;
 
 function toCards(rowsIn: MissionProgressRow[]): MissionCard[] {
-  const completedSlugs = new Set<string>();
-  return rowsIn.map((row, index) => {
-    const previous = index === 0 ? null : rowsIn[index - 1];
+  // Urutan pembukaan dihitung per (tingkat kelas, mata pelajaran), bukan lintas semua misi:
+  // misi Kelas 5 tidak boleh terkunci karena misi Kelas 2 belum dikerjakan.
+  const completedByGroup = new Set<string>();
+  const firstOfGroupSeen = new Set<string>();
+
+  return rowsIn.map((row) => {
+    const group = `${row.grade_level ?? "-"}|${row.subject_label ?? "-"}`;
     const completed = Number(row.attempt_count) > 0;
-    const unlocked = index === 0 || (previous ? completedSlugs.has(previous.slug) : true);
-    if (completed) completedSlugs.add(row.slug);
+    const unlocked = !firstOfGroupSeen.has(group) || completedByGroup.has(group);
+    firstOfGroupSeen.add(group);
+    if (completed) completedByGroup.add(group);
+
     return {
       id: row.id,
       slug: row.slug,
       title: row.title,
       description: row.description,
       orderIndex: row.order_index,
+      gradeLevel: row.grade_level,
+      subjectLabel: row.subject_label,
+      topicLabel: row.topic_label,
       questionCount: Number(row.question_count),
       isPublished: row.is_published,
       unlocked,
@@ -80,6 +98,9 @@ export type StudentOverview = {
   achievements: { key: string; earnedAt: Date }[];
   recent: { id: string; missionTitle: string; slug: string; score: number; completedAt: Date }[];
   continueCard: MissionCard | null;
+  /** Tingkat kelas dari kelas belajar siswa; null = guru belum mengatur. */
+  classGrade: number | null;
+  classCount: number;
 };
 
 export async function getStudentOverview(viewer: Viewer, studentId: string): Promise<StudentOverview> {
@@ -106,6 +127,14 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
     [studentId],
   );
 
+  const classroom = await one<{ grade: number | null; total: string }>(
+    viewer,
+    `select max(c.grade_level) as grade, count(*)::text as total
+       from class_members cm join classes c on c.id = cm.class_id
+      where cm.student_id = $1`,
+    [studentId],
+  );
+
   const continueCard =
     cards.find((card) => card.openAttemptId) ??
     cards.find((card) => card.unlocked && !card.completed) ??
@@ -127,12 +156,16 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
       completedAt: new Date(row.completed_at),
     })),
     continueCard,
+    classGrade: classroom?.grade ?? null,
+    classCount: Number(classroom?.total ?? 0),
   };
 }
 
 export type MissionDetailView = {
   mission: MissionRow;
   card: MissionCard;
+  subjectLabel: string | null;
+  topicLabel: string | null;
   nextMission: { slug: string; title: string } | null;
   estimatedMinutes: number;
   rewardXp: number;
@@ -156,6 +189,8 @@ export async function getMissionDetail(viewer: Viewer, studentId: string, slug: 
   return {
     mission,
     card,
+    subjectLabel: card.subjectLabel,
+    topicLabel: card.topicLabel,
     nextMission: next ? { slug: next.slug, title: next.title } : null,
     estimatedMinutes: Math.max(3, Math.round(card.questionCount * 1.5)),
     rewardXp: card.questionCount * XP_PER_CORRECT + XP_MISSION_BONUS,

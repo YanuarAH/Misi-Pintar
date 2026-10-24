@@ -29,6 +29,12 @@ export type SeedMission = {
   story: string;
   learningObjectives: string[];
   orderIndex: number;
+  /** Tingkat kelas SD yang menjadi sasaran konten ini. */
+  gradeLevel: number;
+  /** Slug dari tabel referensi `subjects`. */
+  subject: string;
+  /** Slug dari tabel referensi `mission_topics`. */
+  topic: string;
   /** Topik tiap soal, sejajar dengan `questions` (slot 1..n). */
   questionTopics: TopicKey[];
   questions: SeedQuestion[];
@@ -55,6 +61,9 @@ export const seedMissions: SeedMission[] = [
       "Menghitung harga setelah diskon persen sederhana",
     ],
     orderIndex: 1,
+    gradeLevel: 5,
+    subject: "matematika",
+    topic: "uang-belanja",
     questionTopics: [
       "penjumlahan-pengurangan",
       "perkalian-pembagian",
@@ -204,6 +213,9 @@ export const seedMissions: SeedMission[] = [
       "Menghubungkan pecahan dengan takaran resep sehari-hari",
     ],
     orderIndex: 2,
+    gradeLevel: 5,
+    subject: "matematika",
+    topic: "pecahan",
     questionTopics: [
       "pecahan-operasi",
       "pecahan-banding",
@@ -351,6 +363,9 @@ export const seedMissions: SeedMission[] = [
       "Memilih satuan panjang, luas, dan volume yang tepat",
     ],
     orderIndex: 3,
+    gradeLevel: 5,
+    subject: "matematika",
+    topic: "geometri-dasar",
     questionTopics: ["keliling", "luas", "keliling", "volume", "luas", "keliling", "satuan", "keliling", "volume", "luas"],
     questions: [
       {

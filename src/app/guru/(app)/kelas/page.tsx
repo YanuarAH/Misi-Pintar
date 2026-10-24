@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, GraduationCap, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, GraduationCap, Users } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
 import { listTeacherClasses } from "@/server/teacher";
 import { ClassForm } from "@/components/teacher/ClassForm";
 import { CopyButton } from "@/components/teacher/CopyButton";
+import { gradeLabel } from "@/lib/curriculum";
 import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Kelas & siswa", robots: { index: false } };
@@ -19,6 +20,7 @@ export default async function TeacherClassesPage() {
         <h1 className="text-2xl font-black sm:text-3xl">Kelas &amp; siswa</h1>
         <p className="mt-1 text-sm text-muted">
           Setiap kelas punya kode 6 karakter. Siswa mendaftar sendiri dengan kode ini, tanpa email.
+          Tingkat kelas menentukan misi yang boleh mereka terima.
         </p>
       </header>
 
@@ -46,7 +48,18 @@ export default async function TeacherClassesPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-black">{classroom.name}</h3>
-                    <p className="mt-0.5 text-xs text-muted">Dibuat {formatDate(classroom.created_at)}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                      <span
+                        className={
+                          classroom.grade_level === null
+                            ? "chip border-coral/40 bg-coral-soft text-[10px] text-[#7d2418]"
+                            : "chip bg-primary-soft text-[10px] text-primary-strong"
+                        }
+                      >
+                        {gradeLabel(classroom.grade_level)}
+                      </span>
+                      Dibuat {formatDate(classroom.created_at)}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 rounded-2xl border border-line bg-paper px-3 py-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wide text-muted">Kode kelas</span>
@@ -74,6 +87,14 @@ export default async function TeacherClassesPage() {
                     </dd>
                   </div>
                 </dl>
+
+                {classroom.grade_level === null ? (
+                  <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-sun-soft px-3 py-2 text-[11px] font-bold text-[#7a4a00]">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                    Tingkat kelas belum diatur, jadi siswa di kelas ini belum menerima misi apa pun. Atur di halaman
+                    kelas.
+                  </p>
+                ) : null}
 
                 <div className="mt-3">
                   <Link

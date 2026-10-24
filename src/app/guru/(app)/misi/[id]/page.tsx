@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Eye, EyeOff, ListChecks, Plus, Trash2 } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
 import { getMissionForEdit } from "@/server/teacher";
-import { archiveMissionAction, archiveQuestionAction, togglePublishAction } from "@/app/actions/teacher";
+import {
+  archiveMissionAction,
+  archiveQuestionAction,
+  setMissionClassesAction,
+  togglePublishAction,
+} from "@/app/actions/teacher";
+import { gradeLabel } from "@/lib/curriculum";
 import { MissionForm } from "@/components/teacher/MissionForm";
 import { QuestionForm } from "@/components/teacher/QuestionForm";
 import { Alert } from "@/components/ui/Alert";
@@ -19,15 +25,16 @@ export default async function MissionEditorPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; tersimpan?: string }>;
 }) {
   const session = await requireTeacher();
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, tersimpan } = await searchParams;
   const data = await getMissionForEdit(viewerOf(session), id, session.id);
   if (!data) notFound();
 
-  const { mission, questions, stats, publishIssues, slotCount } = data;
+  const { mission, questions, stats, publishIssues, slotCount, options, classes, assignedClassIds } = data;
+  const compatibleClasses = classes.filter((item) => item.gradeLevel === mission.grade_level);
   const canPublish = publishIssues.length === 0;
   const nextOrder = questions.length + 1;
   const nextSlot = questions.reduce((max, question) => Math.max(max, question.slot_index), 0) + 1;
@@ -40,6 +47,7 @@ export default async function MissionEditorPage({
       </Link>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {tersimpan === "kelas" ? <Alert tone="success">Penugasan kelas tersimpan.</Alert> : null}
 
       <header className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -60,6 +68,28 @@ export default async function MissionEditorPage({
               </span>
               <span className="chip bg-paper">{questions.length} soal tersimpan</span>
               <span className="chip bg-paper">Urutan {mission.order_index}</span>
+              <span
+                className={cn(
+                  "chip",
+                  mission.grade_level === null
+                    ? "border-coral/40 bg-coral-soft text-[#7d2418]"
+                    : "bg-primary-soft text-primary-strong",
+                )}
+              >
+                {gradeLabel(mission.grade_level)}
+              </span>
+              {mission.subject_slug ? (
+                <span className="chip bg-paper">
+                  {options.subjects.find((item) => item.slug === mission.subject_slug)?.label ?? mission.subject_slug}
+                </span>
+              ) : null}
+              {mission.topic_slug ? (
+                <span className="chip bg-paper">
+                  {options.subjects
+                    .flatMap((item) => item.topics)
+                    .find((item) => item.slug === mission.topic_slug)?.label ?? mission.topic_slug}
+                </span>
+              ) : null}
             </div>
             <h1 className="mt-2 text-2xl font-black">{mission.title}</h1>
             <p className="font-mono text-xs text-muted">/{mission.slug}</p>
@@ -125,6 +155,55 @@ export default async function MissionEditorPage({
         ) : null}
       </header>
 
+      <section className="card p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-base font-black">Kelas belajar yang ditugaskan</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Kosongkan semua centang agar misi ini terbuka untuk semua kelas tingkat {gradeLabel(mission.grade_level)}.
+              Penugasan tidak menyalin misi.
+            </p>
+          </div>
+          <span className="chip bg-paper">{assignedClassIds.length} kelas</span>
+        </div>
+
+        {mission.grade_level === null ? (
+          <div className="mt-3">
+            <Alert tone="error">Pilih tingkat kelas misi lebih dulu sebelum menugaskan ke kelas belajar.</Alert>
+          </div>
+        ) : compatibleClasses.length === 0 ? (
+          <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-xs text-muted">
+            Belum ada kelas belajar tingkat {gradeLabel(mission.grade_level)}. Buat kelas dengan tingkat yang sama di
+            menu Kelas &amp; siswa.
+          </p>
+        ) : (
+          <form action={setMissionClassesAction} className="mt-3 space-y-3">
+            <input type="hidden" name="missionId" value={mission.id} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {compatibleClasses.map((item) => (
+                <label
+                  key={item.id}
+                  className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-bold"
+                >
+                  <input
+                    type="checkbox"
+                    name="classId"
+                    value={item.id}
+                    defaultChecked={assignedClassIds.includes(item.id)}
+                    className="size-4"
+                  />
+                  {item.name}
+                  <span className="ml-auto text-[11px] font-semibold text-muted">{gradeLabel(item.gradeLevel)}</span>
+                </label>
+              ))}
+            </div>
+            <Button type="submit" size="sm">
+              Simpan penugasan
+            </Button>
+          </form>
+        )}
+      </section>
+
       <details className="card group p-4 sm:p-5">
         <summary className="flex cursor-pointer list-none items-center justify-between">
           <span className="text-base font-black">Pengaturan misi</span>
@@ -132,7 +211,7 @@ export default async function MissionEditorPage({
           <span className="hidden text-xs font-bold text-muted group-open:inline">Tutup</span>
         </summary>
         <div className="mt-4 border-t border-line pt-4">
-          <MissionForm mission={mission} />
+          <MissionForm mission={mission} options={options} />
         </div>
       </details>
 

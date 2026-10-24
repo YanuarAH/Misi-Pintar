@@ -59,9 +59,11 @@ async function main() {
     );
     if (existingClass.rows[0]) {
       classId = existingClass.rows[0].id;
+      // Kelas demo memang untuk kelas 5; kelas lain tidak disentuh.
+      await client.query("update classes set grade_level = coalesce(grade_level, 5) where id = $1", [classId]);
     } else {
       const inserted = await client.query<{ id: string }>(
-        "insert into classes (teacher_id, name, join_code) values ($1, $2, $3) returning id",
+        "insert into classes (teacher_id, name, join_code, grade_level) values ($1, $2, $3, 5) returning id",
         [teacherId, "Kelas 5A - Matematika", DEMO_CLASS_CODE],
       );
       classId = inserted.rows[0].id;
@@ -102,8 +104,10 @@ async function main() {
       let missionId = existing.rows[0]?.id;
       if (!missionId) {
         const inserted = await client.query<{ id: string }>(
-          `insert into missions (slug, title, description, story, learning_objectives, order_index, is_published, author_id)
-           values ($1, $2, $3, $4, $5, $6, true, $7) returning id`,
+          `insert into missions
+             (slug, title, description, story, learning_objectives, order_index, is_published, author_id,
+              grade_level, subject_slug, topic_slug)
+           values ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10) returning id`,
           [
             mission.slug,
             mission.title,
@@ -112,6 +116,9 @@ async function main() {
             mission.learningObjectives,
             mission.orderIndex,
             teacherId,
+            mission.gradeLevel,
+            mission.subject,
+            mission.topic,
           ],
         );
         missionId = inserted.rows[0].id;
@@ -119,7 +126,8 @@ async function main() {
         await client.query(
           `update missions
               set title = $2, description = $3, story = $4, learning_objectives = $5, order_index = $6,
-                  is_published = true, archived_at = null
+                  is_published = true, archived_at = null,
+                  grade_level = $7, subject_slug = $8, topic_slug = $9
             where id = $1`,
           [
             missionId,
@@ -128,6 +136,9 @@ async function main() {
             mission.story,
             mission.learningObjectives,
             mission.orderIndex,
+            mission.gradeLevel,
+            mission.subject,
+            mission.topic,
           ],
         );
       }

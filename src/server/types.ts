@@ -7,6 +7,9 @@ export type MissionRow = {
   learning_objectives: string[];
   order_index: number;
   is_published: boolean;
+  grade_level: number | null;
+  subject_slug: string | null;
+  topic_slug: string | null;
   author_id: string | null;
   created_at: Date;
   updated_at: Date;
@@ -52,6 +55,9 @@ export type MissionCard = {
   title: string;
   description: string;
   orderIndex: number;
+  gradeLevel: number | null;
+  subjectLabel: string | null;
+  topicLabel: string | null;
   questionCount: number;
   isPublished: boolean;
   unlocked: boolean;

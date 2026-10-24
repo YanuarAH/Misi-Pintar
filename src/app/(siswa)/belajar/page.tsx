@@ -13,6 +13,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { startMissionAction } from "@/app/actions/student";
 import { ACHIEVEMENTS, ACHIEVEMENT_KEYS } from "@/lib/achievements";
 import { formatDateTime, percent } from "@/lib/format";
+import { gradeLabel } from "@/lib/curriculum";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Peta misi", robots: { index: false } };
@@ -119,7 +120,16 @@ export default async function StudentDashboardPage({
             <p className="text-sm text-muted">Pilih misi yang terbuka, lalu selesaikan satu per satu.</p>
           </div>
         </div>
-        <MissionMap cards={overview.cards} />
+        <MissionMap
+          cards={overview.cards}
+          emptyHint={
+            overview.classCount === 0
+              ? "Kamu belum tergabung di kelas belajar mana pun. Minta kode kelas kepada gurumu, lalu daftar ulang."
+              : overview.classGrade === null
+                ? "Gurumu belum mengatur tingkat kelas untuk kelas belajarmu, jadi misi belum bisa ditampilkan."
+                : `Belum ada misi terbit untuk ${gradeLabel(overview.classGrade)}. Coba muat ulang nanti.`
+          }
+        />
       </section>
 
       <section aria-labelledby="lencana-judul" className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

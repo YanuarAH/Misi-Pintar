@@ -4,7 +4,13 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, RefreshCw, Target, Users } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
 import { getClassDetail } from "@/server/teacher";
-import { regenerateJoinCodeAction, removeMemberAction, resetPinAction } from "@/app/actions/teacher";
+import {
+  regenerateJoinCodeAction,
+  removeMemberAction,
+  resetPinAction,
+  setClassGradeAction,
+} from "@/app/actions/teacher";
+import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
@@ -20,7 +26,7 @@ export default async function ClassDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; pinReset?: string }>;
+  searchParams: Promise<{ error?: string; pinReset?: string; kelasDiatur?: string }>;
 }) {
   const session = await requireTeacher();
   const { id } = await params;
@@ -42,12 +48,23 @@ export default async function ClassDetailPage({
 
       {query.error ? <Alert tone="error">{query.error}</Alert> : null}
       {query.pinReset ? <Alert tone="success">PIN siswa berhasil diatur ulang. Sesi lama siswa tersebut sudah diakhiri.</Alert> : null}
+      {query.kelasDiatur ? <Alert tone="success">Tingkat kelas tersimpan.</Alert> : null}
 
       <header className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black">{classroom.name}</h1>
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted">
+              <span
+                className={cn(
+                  "chip text-[10px]",
+                  classroom.grade_level === null
+                    ? "border-coral/40 bg-coral-soft text-[#7d2418]"
+                    : "bg-primary-soft text-primary-strong",
+                )}
+              >
+                {gradeLabel(classroom.grade_level)}
+              </span>
               {students.length} siswa · {totalCompletions} penyelesaian misi ·{" "}
               {avgAccuracy === null ? "belum ada akurasi" : `rata-rata akurasi ${avgAccuracy}%`}
             </p>
@@ -68,6 +85,34 @@ export default async function ClassDetailPage({
             />
           </div>
         </div>
+        {classroom.grade_level === null ? (
+          <div className="mt-3 rounded-2xl border border-sun/50 bg-sun-soft p-3">
+            <p className="flex items-start gap-2 text-xs font-bold text-[#7a4a00]">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              Kelas ini belum punya tingkat kelas, sehingga siswa belum menerima misi apa pun.
+            </p>
+            <form action={setClassGradeAction} className="mt-2 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="classId" value={classroom.id} />
+              <label className="grid gap-1">
+                <span className="text-[10px] font-black uppercase tracking-wide text-[#7a4a00]">Tingkat kelas</span>
+                <select name="gradeLevel" className="input min-w-36" defaultValue="" required>
+                  <option value="" disabled>
+                    Pilih tingkat
+                  </option>
+                  {GRADE_LEVELS.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {gradeLabel(grade)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="submit" size="sm">
+                Simpan tingkat
+              </Button>
+            </form>
+          </div>
+        ) : null}
+
         <p className="mt-3 rounded-2xl bg-sky-soft px-4 py-2.5 text-xs leading-relaxed text-[#1d4b73]">
           Siswa mendaftar di <span className="font-mono">/daftar</span> memakai kode kelas di atas. Setelah
           mendaftar, mereka menerima kode siswa masing-masing. Guru dapat melihat kode tersebut di tabel bawah dan

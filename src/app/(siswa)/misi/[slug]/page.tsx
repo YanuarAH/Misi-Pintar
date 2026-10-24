@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { startMissionAction } from "@/app/actions/student";
 import { missionVisual } from "@/components/student/missionMeta";
 import { Alert } from "@/components/ui/Alert";
+import { curriculumLabel } from "@/lib/curriculum";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -27,7 +28,7 @@ export default async function MissionOverviewPage({
   const detail = await getMissionDetail(viewerOf(session), session.id, slug);
   if (!detail) notFound();
 
-  const { mission, card, nextMission, estimatedMinutes, rewardXp } = detail;
+  const { mission, card, nextMission, estimatedMinutes, rewardXp, subjectLabel, topicLabel } = detail;
   const visual = missionVisual(mission.slug);
 
   return (
@@ -42,6 +43,9 @@ export default async function MissionOverviewPage({
       <header className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-paper/60 px-5 py-3">
           <span className="chip bg-surface">Misi {card.orderIndex}</span>
+          <span className="chip bg-primary-soft text-primary-strong">
+            {curriculumLabel({ gradeLevel: card.gradeLevel, subjectLabel, topicLabel })}
+          </span>
           <span className="chip bg-surface">
             <ListChecks className="size-3.5" aria-hidden="true" /> {card.questionCount} soal
           </span>

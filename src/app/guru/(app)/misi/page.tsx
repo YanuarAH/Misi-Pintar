@@ -1,17 +1,37 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Filter, Plus, Users } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
-import { listTeacherMissions } from "@/server/teacher";
+import { getCurriculumOptions, listTeacherMissions } from "@/server/teacher";
 import { MissionForm } from "@/components/teacher/MissionForm";
 import { ButtonLink } from "@/components/ui/Button";
+import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Misi & soal", robots: { index: false } };
 
-export default async function TeacherMissionsPage() {
+export default async function TeacherMissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ grade?: string; subject?: string; uncategorized?: string }>;
+}) {
   const session = await requireTeacher();
-  const missions = await listTeacherMissions(viewerOf(session), session.id);
+  const viewer = viewerOf(session);
+  const params = await searchParams;
+
+  const parsedGrade = params.grade ? Number(params.grade) : null;
+  const gradeLevel = parsedGrade !== null && Number.isInteger(parsedGrade) ? parsedGrade : null;
+  const subject = params.subject || null;
+  const uncategorized = params.uncategorized === "1";
+
+  const [missions, options, allMissions] = await Promise.all([
+    listTeacherMissions(viewer, session.id, { gradeLevel, subject, uncategorized }),
+    getCurriculumOptions(viewer),
+    listTeacherMissions(viewer, session.id),
+  ]);
+
+  const uncategorizedCount = allMissions.filter((mission) => mission.grade_level === null).length;
+  const filterActive = gradeLevel !== null || Boolean(subject) || uncategorized;
 
   return (
     <div className="space-y-6">
@@ -19,10 +39,72 @@ export default async function TeacherMissionsPage() {
         <div>
           <h1 className="text-2xl font-black sm:text-3xl">Misi &amp; soal</h1>
           <p className="mt-1 text-sm text-muted">
-            Buat misi, tambahkan soal, lalu terbitkan setelah semua soal valid.
+            Setiap misi punya tingkat kelas, mata pelajaran, dan topik. Konten antar tingkat tidak tercampur.
           </p>
         </div>
       </header>
+
+      {uncategorizedCount > 0 ? (
+        <div className="rounded-2xl border border-sun/50 bg-sun-soft px-4 py-3">
+          <p className="flex items-start gap-2 text-sm font-bold text-[#7a4a00]">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {uncategorizedCount} misi belum punya tingkat kelas dan tidak tampil ke siswa.
+          </p>
+          <p className="mt-1 pl-6 text-xs leading-relaxed text-[#7a4a00]/90">
+            Data lama tidak dikategorikan otomatis karena tidak cukup bukti. Buka misinya, pilih tingkat kelas,
+            mata pelajaran, dan topik, lalu simpan.
+          </p>
+          <div className="mt-2 pl-6">
+            <Link href="/guru/misi?uncategorized=1" className="text-xs font-black text-[#7a4a00] underline">
+              Tampilkan misi yang belum dikategorikan
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      <form method="get" className="card flex flex-wrap items-end gap-3 p-4" aria-label="Filter daftar misi">
+        <label className="grid gap-1">
+          <span className="text-[11px] font-black uppercase tracking-wide text-muted">Tingkat kelas</span>
+          <select name="grade" defaultValue={gradeLevel ?? ""} className="input min-w-40">
+            <option value="">Semua tingkat</option>
+            {GRADE_LEVELS.map((grade) => (
+              <option key={grade} value={grade}>
+                {gradeLabel(grade)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-black uppercase tracking-wide text-muted">Mata pelajaran</span>
+          <select name="subject" defaultValue={subject ?? ""} className="input min-w-44">
+            <option value="">Semua mata pelajaran</option>
+            {options.subjects.map((item) => (
+              <option key={item.slug} value={item.slug}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 pb-2.5 text-sm font-bold">
+          <input type="checkbox" name="uncategorized" value="1" defaultChecked={uncategorized} className="size-4" />
+          Hanya yang belum dikategorikan
+        </label>
+
+        <button
+          type="submit"
+          className="ml-auto inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-strong"
+        >
+          <Filter className="size-4" aria-hidden="true" />
+          Terapkan
+        </button>
+        {filterActive ? (
+          <Link href="/guru/misi" className="text-sm font-bold text-muted underline">
+            Reset
+          </Link>
+        ) : null}
+      </form>
 
       <details className="card group p-4 sm:p-5">
         <summary className="flex cursor-pointer list-none items-center justify-between">
@@ -34,21 +116,32 @@ export default async function TeacherMissionsPage() {
           <span className="hidden text-xs font-bold text-muted group-open:inline">Tutup</span>
         </summary>
         <div className="mt-4 border-t border-line pt-4">
-          <MissionForm />
+          <MissionForm options={options} />
         </div>
       </details>
 
       <section className="card overflow-hidden">
         <div className="border-b border-line px-4 py-3.5">
-          <h2 className="text-base font-black">Daftar misi ({missions.length})</h2>
+          <h2 className="text-base font-black">
+            Daftar misi ({missions.length}
+            {filterActive ? ` dari ${allMissions.length}` : ""})
+          </h2>
         </div>
         {missions.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="font-bold">Belum ada misi.</p>
+            <p className="font-bold">Tidak ada misi pada filter ini.</p>
             <p className="mt-1 text-sm text-muted">
-              Gunakan formulir di atas atau jalankan <code className="font-mono text-xs">npm run db:seed</code> untuk
-              memuat tiga misi contoh.
+              {filterActive
+                ? "Ubah filter atau buat misi baru untuk tingkat kelas ini."
+                : "Gunakan formulir di atas atau jalankan npm run db:seed untuk memuat tiga misi contoh."}
             </p>
+            {filterActive ? (
+              <div className="mt-3">
+                <ButtonLink href="/guru/misi" variant="secondary" size="sm">
+                  Lihat semua misi
+                </ButtonLink>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -56,6 +149,7 @@ export default async function TeacherMissionsPage() {
               <thead>
                 <tr>
                   <th scope="col">Misi</th>
+                  <th scope="col">Kategori</th>
                   <th scope="col">Status</th>
                   <th scope="col" className="text-center">
                     Soal
@@ -74,6 +168,34 @@ export default async function TeacherMissionsPage() {
                         {mission.title}
                       </Link>
                       <p className="font-mono text-[11px] text-muted">/{mission.slug}</p>
+                      {mission.assignedClasses.length > 0 ? (
+                        <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-muted">
+                          <Users className="size-3" aria-hidden="true" />
+                          {mission.assignedClasses.map((item) => item.name).join(", ")}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-[11px] text-muted">Belum ditugaskan ke kelas tertentu</p>
+                      )}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        <span
+                          className={cn(
+                            "chip text-[10px]",
+                            mission.grade_level === null
+                              ? "border-coral/40 bg-coral-soft text-[#7d2418]"
+                              : "bg-primary-soft text-primary-strong",
+                          )}
+                        >
+                          {gradeLabel(mission.grade_level)}
+                        </span>
+                        {mission.subjectLabel ? (
+                          <span className="chip bg-paper text-[10px]">{mission.subjectLabel}</span>
+                        ) : null}
+                        {mission.topicLabel ? (
+                          <span className="chip bg-paper text-[10px]">{mission.topicLabel}</span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <span
@@ -113,8 +235,8 @@ export default async function TeacherMissionsPage() {
       </section>
 
       <p className="text-xs text-muted">
-        Misi hanya dapat diterbitkan bila memiliki minimal satu soal dan semua soal lolos validasi (pilihan ganda
-        punya jawaban yang cocok, soal angka punya jawaban numerik).
+        Misi hanya dapat diterbitkan bila punya tingkat kelas, mata pelajaran, topik, serta minimal satu soal valid
+        di setiap slot.
       </p>
     </div>
   );

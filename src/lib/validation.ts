@@ -55,6 +55,11 @@ export const profileUpdateSchema = z.object({
 
 export const classSchema = z.object({
   name: z.string().trim().min(2, "Nama kelas minimal 2 huruf.").max(60, "Nama kelas maksimal 60 huruf."),
+  gradeLevel: z.coerce
+    .number({ message: "Pilih tingkat kelas." })
+    .int()
+    .min(1, "Tingkat kelas 1-6.")
+    .max(6, "Tingkat kelas 1-6."),
 });
 
 export const missionSchema = z.object({
@@ -73,6 +78,13 @@ export const missionSchema = z.object({
     .max(8, "Maksimal 8 tujuan pembelajaran.")
     .default([]),
   orderIndex: z.coerce.number().int().min(1, "Urutan minimal 1.").max(99),
+  gradeLevel: z.coerce
+    .number({ message: "Pilih tingkat kelas misi." })
+    .int()
+    .min(1, "Tingkat kelas 1-6.")
+    .max(6, "Tingkat kelas 1-6."),
+  subject: z.string().trim().min(2, "Pilih mata pelajaran.").max(40),
+  topic: z.string().trim().min(2, "Pilih topik/materi.").max(60),
 });
 
 export type QuestionInput = {

@@ -3,6 +3,7 @@ import { startMissionAction } from "@/app/actions/student";
 import { Button } from "@/components/ui/Button";
 import type { MissionCard } from "@/server/types";
 import { cn } from "@/lib/cn";
+import { curriculumLabel } from "@/lib/curriculum";
 import { missionVisual } from "./missionMeta";
 
 function StatusBadge({ card }: { card: MissionCard }) {
@@ -34,13 +35,13 @@ function StatusBadge({ card }: { card: MissionCard }) {
   );
 }
 
-export function MissionMap({ cards }: { cards: MissionCard[] }) {
+export function MissionMap({ cards, emptyHint }: { cards: MissionCard[]; emptyHint?: string }) {
   if (cards.length === 0) {
     return (
       <div className="card p-6 text-center">
-        <p className="font-bold">Belum ada misi yang terbit.</p>
+        <p className="font-bold">Belum ada misi untukmu.</p>
         <p className="mt-1 text-sm text-muted">
-          Tunggu gurumu menerbitkan misi, lalu muat ulang halaman ini.
+          {emptyHint ?? "Tunggu gurumu menerbitkan misi untuk tingkat kelasmu, lalu muat ulang halaman ini."}
         </p>
       </div>
     );
@@ -87,6 +88,15 @@ export function MissionMap({ cards }: { cards: MissionCard[] }) {
                   <StatusBadge card={card} />
                 </div>
                 <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted">{card.description}</p>
+                <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-muted">
+                  <span className="chip bg-primary-soft text-[10px] text-primary-strong">
+                    {curriculumLabel({
+                      gradeLevel: card.gradeLevel,
+                      subjectLabel: card.subjectLabel,
+                      topicLabel: card.topicLabel,
+                    })}
+                  </span>
+                </p>
                 <p className="mt-1.5 text-xs font-bold text-muted">
                   {card.questionCount} soal
                   {card.completed && card.bestScore !== null ? ` · skor terbaik ${card.bestScore}` : ""}
