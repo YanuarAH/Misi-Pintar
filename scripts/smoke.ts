@@ -83,6 +83,13 @@ async function main() {
       `${guardPractice.status} -> ${guardPractice.location}`,
     );
 
+    const guardClasses = await get("/kelas-saya");
+    record(
+      "GET /kelas-saya tanpa sesi dialihkan",
+      [302, 307, 308].includes(guardClasses.status) && guardClasses.location.includes("/masuk"),
+      `${guardClasses.status} -> ${guardClasses.location}`,
+    );
+
     const missing = await get("/halaman-tidak-ada");
     record("Halaman tidak dikenal mengembalikan 404", missing.status === 404, `status ${missing.status}`);
 
@@ -97,6 +104,13 @@ async function main() {
 
       const profile = await get("/profil", student.token);
       record("Siswa dapat membuka /profil", profile.status === 200, `status ${profile.status}`);
+
+      const myClasses = await get("/kelas-saya", student.token);
+      record("Siswa dapat membuka /kelas-saya", myClasses.status === 200, `status ${myClasses.status}`);
+      record(
+        "Halaman Kelas saya memuat tingkat kelas dan form gabung",
+        myClasses.body.includes("Tingkat kelas") && myClasses.body.includes("Gabung kelas"),
+      );
 
       // notFound() terjadi setelah streaming dimulai (loading.tsx), jadi statusnya 200
       // tetapi isinya halaman "tidak ditemukan" — bukan sesi latihan.

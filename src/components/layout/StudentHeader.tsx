@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Map, Star, TrendingUp, UserRound } from "lucide-react";
+import { Map, Star, TrendingUp, UserRound, Users } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
 import { Logo } from "./Logo";
@@ -14,7 +14,7 @@ export function StudentHeader({
   displayName: string;
   avatarKey: string;
   xp: number;
-  active?: "belajar" | "progres" | "misi" | "profil";
+  active?: "belajar" | "progres" | "misi" | "profil" | "kelas";
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
@@ -43,6 +43,17 @@ export function StudentHeader({
           >
             <TrendingUp className="mr-1.5 inline size-4" aria-hidden="true" />
             Progres
+          </Link>
+          <Link
+            href="/kelas-saya"
+            aria-current={active === "kelas" ? "page" : undefined}
+            className={cn(
+              "rounded-full px-3 py-2 text-sm font-bold",
+              active === "kelas" ? "bg-primary-soft text-primary-strong" : "text-ink/75 hover:bg-white",
+            )}
+          >
+            <Users className="mr-1.5 inline size-4" aria-hidden="true" />
+            Kelas saya
           </Link>
         </nav>
 
@@ -89,6 +100,16 @@ export function StudentHeader({
           )}
         >
           <TrendingUp className="size-4" aria-hidden="true" /> Progres
+        </Link>
+        <Link
+          href="/kelas-saya"
+          aria-current={active === "kelas" ? "page" : undefined}
+          className={cn(
+            "flex min-h-11 flex-1 items-center justify-center gap-1.5 text-xs font-bold",
+            active === "kelas" ? "text-primary" : "text-muted",
+          )}
+        >
+          <Users className="size-4" aria-hidden="true" /> Kelas
         </Link>
         <Link
           href="/profil"

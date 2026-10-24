@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Users } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { ProfileForm } from "@/components/student/ProfileForm";
@@ -39,6 +39,22 @@ export default async function ProfilePage() {
           displayName={profile?.display_name ?? session.displayName}
           avatarKey={profile?.avatar_key ?? session.avatarKey}
         />
+      </section>
+
+      <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">Tingkat kelas & kelas belajar</p>
+          <p className="mt-1 text-sm text-muted">
+            Atur tingkat kelas dan gabung kelas guru di halaman Kelas saya.
+          </p>
+        </div>
+        <Link
+          href="/kelas-saya"
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3.5 py-2 text-sm font-bold text-primary-strong"
+        >
+          <Users className="size-4" aria-hidden="true" />
+          Buka Kelas saya
+        </Link>
       </section>
 
       <p className="flex items-start gap-2 rounded-2xl bg-sky-soft px-4 py-3 text-xs leading-relaxed text-[#1d4b73]">

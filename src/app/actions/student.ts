@@ -5,13 +5,17 @@ import { redirect } from "next/navigation";
 import {
   cancelAttempt,
   completeAttempt,
+  joinClassWithCode,
+  leaveClass,
+  setStudentGrade,
   startOrResumeAttempt,
   startPracticeAttempt,
   submitAnswer,
   updateStudentProfile,
 } from "@/server/student";
 import { getSession } from "@/lib/session";
-import { profileUpdateSchema } from "@/lib/validation";
+import { rateLimit } from "@/lib/rateLimit";
+import { joinClassSchema, profileUpdateSchema, studentGradeSchema } from "@/lib/validation";
 import type { AnswerFeedback } from "@/server/types";
 
 /** Membuat/melanjutkan percobaan lewat POST, lalu membuka halaman pengerjaan. */
@@ -127,6 +131,92 @@ export async function cancelAttemptAction(formData: FormData): Promise<void> {
 }
 
 export type ProfileState = { error?: string; success?: string } | null;
+
+export type ClassState = { error?: string; success?: string } | null;
+
+/** Gabung kelas belajar dengan kode undangan; akun & progres tetap sama. */
+export async function joinClassAction(_prev: ClassState, formData: FormData): Promise<ClassState> {
+  const session = await getSession();
+  if (!session || session.role !== "student") return { error: "Sesi kamu sudah berakhir." };
+
+  const parsed = joinClassSchema.safeParse({ code: formData.get("code") ?? "" });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Kode kelas belum valid." };
+
+  const limited = rateLimit(`join-class:${session.id}`, 8, 10 * 60 * 1000);
+  if (!limited.ok) {
+    return { error: `Terlalu banyak percobaan. Coba lagi dalam ${limited.retryAfterSeconds} detik.` };
+  }
+
+  try {
+    const result = await joinClassWithCode({ userId: session.id, role: "student" }, parsed.data.code);
+
+    const messages: Record<string, string> = {
+      SUDAH_TERGABUNG: "Kamu sudah menjadi anggota kelas ini.",
+      KODE_TIDAK_DITEMUKAN: "Kode kelas tidak ditemukan. Periksa lagi huruf dan angkanya.",
+      TINGKAT_TIDAK_COCOK: `Kelas "${result.className ?? "-"}" untuk Kelas ${result.gradeLevel ?? "-"} SD, sedangkan tingkat kelasmu berbeda.`,
+      TERLALU_BANYAK_PERCOBAAN: "Terlalu banyak percobaan kode. Coba lagi beberapa menit lagi.",
+      BUKAN_SISWA: "Hanya akun siswa yang dapat bergabung ke kelas.",
+    };
+
+    if (result.status !== "BERHASIL" && result.status !== "SUDAH_TERGABUNG") {
+      return { error: messages[result.status] ?? "Kelas gagal dimasuki. Coba lagi." };
+    }
+
+    revalidatePath("/kelas-saya");
+    revalidatePath("/belajar");
+    revalidatePath("/progres");
+
+    return {
+      success:
+        result.status === "SUDAH_TERGABUNG"
+          ? messages.SUDAH_TERGABUNG
+          : `Kamu bergabung ke ${result.className ?? "kelas"}${result.teacherName ? ` (guru: ${result.teacherName})` : ""}.`,
+    };
+  } catch (error) {
+    console.error("joinClassAction", error);
+    return { error: "Kelas gagal dimasuki. Periksa koneksi lalu coba lagi." };
+  }
+}
+
+/** Menyimpan tingkat kelas siswa (untuk belajar mandiri). */
+export async function setGradeAction(_prev: ClassState, formData: FormData): Promise<ClassState> {
+  const session = await getSession();
+  if (!session || session.role !== "student") return { error: "Sesi kamu sudah berakhir." };
+
+  const parsed = studentGradeSchema.safeParse({ gradeLevel: formData.get("gradeLevel") ?? "" });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Tingkat kelas belum valid." };
+
+  try {
+    await setStudentGrade({ userId: session.id, role: "student" }, session.id, parsed.data.gradeLevel);
+    revalidatePath("/kelas-saya");
+    revalidatePath("/belajar");
+    revalidatePath("/progres");
+    return { success: "Tingkat kelas tersimpan. Misi sesuai tingkatmu akan muncul di peta misi." };
+  } catch {
+    return { error: "Tingkat kelas gagal disimpan. Coba lagi." };
+  }
+}
+
+/** Keluar dari kelas (keanggotaan saja; akun, progres, dan riwayat tetap). */
+export async function leaveClassAction(formData: FormData): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/masuk");
+  if (session.role !== "student") redirect("/guru/dashboard");
+
+  const classId = String(formData.get("classId") ?? "").trim();
+  if (!classId) redirect("/kelas-saya");
+
+  try {
+    await leaveClass({ userId: session.id, role: "student" }, session.id, classId);
+  } catch (error) {
+    console.error("leaveClassAction", error);
+  }
+
+  revalidatePath("/kelas-saya");
+  revalidatePath("/belajar");
+  revalidatePath("/progres");
+  redirect("/kelas-saya?keluar=1");
+}
 
 export async function updateProfileAction(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
   const session = await getSession();

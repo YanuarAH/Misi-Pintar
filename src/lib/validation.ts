@@ -41,11 +41,43 @@ export const studentLoginSchema = z.object({
   pin: pinSchema,
 });
 
+/** Kode kelas boleh kosong: belajar mandiri tidak butuh kelas. */
+export const optionalClassCodeSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.union([z.null(), classCodeSchema]),
+);
+
+/** Tingkat kelas boleh dipilih saat mendaftar, atau menyusul di halaman Kelas Saya. */
+export const optionalGradeLevelSchema = z.preprocess(
+  (value) => (value === "" || value === null || value === undefined ? null : value),
+  z.union([
+    z.null(),
+    z.coerce
+      .number({ message: "Tingkat kelas harus 1-6." })
+      .int("Tingkat kelas harus 1-6.")
+      .min(1, "Tingkat kelas 1-6.")
+      .max(6, "Tingkat kelas 1-6."),
+  ]),
+);
+
 export const studentRegisterSchema = z.object({
-  joinCode: classCodeSchema,
+  joinCode: optionalClassCodeSchema,
   displayName: displayNameSchema,
   pin: pinSchema,
   avatarKey: z.enum(AVATAR_KEYS as unknown as [string, ...string[]]),
+  gradeLevel: optionalGradeLevelSchema,
+});
+
+export const joinClassSchema = z.object({
+  code: classCodeSchema,
+});
+
+export const studentGradeSchema = z.object({
+  gradeLevel: z.coerce
+    .number({ message: "Pilih tingkat kelas." })
+    .int("Tingkat kelas harus 1-6.")
+    .min(1, "Tingkat kelas 1-6.")
+    .max(6, "Tingkat kelas 1-6."),
 });
 
 export const profileUpdateSchema = z.object({

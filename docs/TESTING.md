@@ -31,11 +31,11 @@ uji ke database pengembangan atau produksi.**
 
 ```
 npx vitest run
-Test Files  10 passed (10)
-Tests       124 passed (124)
+Test Files  11 passed (11)
+Tests       147 passed (147)
 ```
 
-## Matriks 15 skenario wajib
+## Matriks skenario wajib
 
 | # | Skenario | Diuji oleh |
 | --- | --- | --- |
@@ -69,6 +69,15 @@ Tests       124 passed (124)
 | 24 | Siswa hanya melihat misi tingkatnya / yang ditugaskan; draf sembunyi | `tests/kelas-kurikulum.test.ts` (describe "akses siswa ke misi") |
 | 25 | Riwayat lama tetap terbaca setelah kategori berubah | `tests/kelas-kurikulum.test.ts` ("percobaan dan progres lama tetap dapat dibuka") |
 | 26 | RLS penugasan & soal lintas tingkat | `tests/kelas-kurikulum.test.ts` (describe "keamanan akses") |
+| 27 | Siswa mendaftar tanpa kode kelas | `tests/kelas-opsional.test.ts` (describe "pendaftaran tanpa kode kelas") |
+| 28 | Login siswa tidak butuh keanggotaan kelas | sama, "siswa tanpa kelas tetap bisa masuk" |
+| 29 | Siswa langsung membuka konten mandiri sesuai tingkat | sama, describe "konten mandiri sesuai tingkat kelas" |
+| 30 | Gabung kelas lewat kode setelah mendaftar (tanpa akun baru) | sama, describe "gabung kelas setelah mendaftar" |
+| 31 | Satu siswa di beberapa kelas, tanpa duplikat | sama, "satu siswa dapat bergabung ke beberapa kelas" & "keanggotaan ganda ... dicegah" |
+| 32 | Kode salah / tingkat tidak cocok / guru / brute force tidak memberi akses | sama, tiga test terkait + "guru tidak dapat memakai jalur gabung kelas" |
+| 33 | Isolasi data anggota, profil, dan tugas privat antarsiswa | sama, describe "tugas kelas dan isolasi data" |
+| 34 | Kewenangan guru terbatas pada kelasnya, perubahan tingkat dijaga | sama, describe "kewenangan guru" |
+| 35 | Progres & riwayat tetap ada setelah keluar kelas | sama, describe "progres lama tetap aman" |
 
 ## Cakupan per file
 
@@ -84,13 +93,15 @@ Tests       124 passed (124)
 | `tests/teacher-access.test.ts` | Batas antar guru, validasi terbit, soft delete, ringkasan dasbor |
 | `tests/topics-practice.test.ts` | Pemilihan satu varian per slot, latihan dari soal salah (tanpa XP/lencana), isolasi latihan antarsiswa, peta kemampuan per topik, CRUD slot/topik guru, validasi terbit per slot |
 | `tests/kelas-kurikulum.test.ts` | Tingkat kelas vs kelas belajar, filter daftar misi, isolasi soal, penugasan misi (termasuk penolakan lintas tingkat & trigger DB), akses siswa, misi belum dikategorikan, riwayat lama, CRUD + arsip, RLS penugasan |
+| `tests/kelas-opsional.test.ts` | Pendaftaran tanpa kode kelas, login mandiri, konten sesuai tingkat profil, gabung kelas via kode (ganda/lintas tingkat/pembatasan), isolasi anggota & tugas, kewenangan guru, progres lama setelah keluar kelas |
 
 ## Uji manual yang sudah dijalankan
 
 Production build (`npm run build && npm start`, port 3100), browser sungguhan:
 
 1. Landing menampilkan 3 misi dari database.
-2. Pendaftaran siswa baru (kode kelas `MISI5A`) → kode akses tampil di dashboard.
+2. Pendaftaran siswa baru **tanpa kode kelas** (diarahkan ke `/kelas-saya`, pilih tingkat) lalu
+   bergabung lewat `MISI5A` dari halaman itu → guru kelas tampil di daftar kelas.
 3. Misi 1: 10 soal dijawab benar → 100 skor, 120 XP, lencana Penjelajah/Bintang Misi/Sempurna.
 4. `/progres`: 120 XP, misi 2 terbuka, riwayat tercatat.
 5. Keluar → masuk lagi → progres tetap.

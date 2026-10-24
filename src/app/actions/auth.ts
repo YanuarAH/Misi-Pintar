@@ -98,23 +98,34 @@ export async function registerStudentAction(_prev: AuthState, formData: FormData
     displayName: formData.get("displayName") ?? "",
     pin: formData.get("pin") ?? "",
     avatarKey: formData.get("avatarKey") ?? "rubah",
+    gradeLevel: formData.get("gradeLevel") ?? "",
   });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
   const confirmPin = String(formData.get("confirmPin") ?? "");
   if (confirmPin !== parsed.data.pin) return { error: "PIN dan ulangi PIN belum sama." };
 
-  const limited = rateLimit(`register:${parsed.data.joinCode}`, 12, 10 * 60 * 1000);
+  const { joinCode, gradeLevel } = parsed.data;
+
+  const limited = rateLimit(`register:${joinCode ?? "mandiri"}`, 12, 10 * 60 * 1000);
   if (!limited.ok) {
-    return { error: `Terlalu banyak pendaftaran dari kode kelas ini. Coba lagi dalam ${limited.retryAfterSeconds} detik.` };
+    return { error: `Terlalu banyak pendaftaran. Coba lagi dalam ${limited.retryAfterSeconds} detik.` };
   }
 
-  const classroom = await one<{ id: string; name: string }>(
-    null,
-    "select id, name from public.app_class_by_join_code($1)",
-    [parsed.data.joinCode],
-  );
-  if (!classroom) return { error: "Kode kelas tidak ditemukan. Mintalah kode 6 huruf dari gurumu." };
+  // Kode kelas opsional: hanya diperiksa bila diisi.
+  if (joinCode) {
+    const classroom = await one<{ id: string; name: string; grade_level: number | null }>(
+      null,
+      "select id, name, grade_level from public.app_class_join_preview($1)",
+      [joinCode],
+    );
+    if (!classroom) return { error: "Kode kelas tidak ditemukan. Kosongkan bila ingin belajar mandiri." };
+    if (gradeLevel !== null && classroom.grade_level !== null && gradeLevel !== classroom.grade_level) {
+      return {
+        error: `Kelas "${classroom.name}" untuk Kelas ${classroom.grade_level} SD. Samakan tingkat kelasmu atau kosongkan kode kelas.`,
+      };
+    }
+  }
 
   const pinHash = await hashSecret(parsed.data.pin);
 
@@ -123,12 +134,13 @@ export async function registerStudentAction(_prev: AuthState, formData: FormData
     try {
       const created = await one<{ app_register_student: string }>(
         null,
-        "select public.app_register_student($1, $2, $3, $4, $5)",
-        [parsed.data.joinCode, parsed.data.displayName, pinHash, parsed.data.avatarKey, accessCode],
+        "select public.app_register_student($1, $2, $3, $4, $5, $6)",
+        [parsed.data.displayName, parsed.data.avatarKey, pinHash, accessCode, joinCode, gradeLevel],
       );
       if (created) {
         await createSession(created.app_register_student);
-        redirect("/belajar?baru=1");
+        // Tanpa tingkat kelas, arahkan ke pemilihan tingkat agar misi bisa ditampilkan.
+        redirect(gradeLevel === null ? "/kelas-saya?baru=1" : "/belajar?baru=1");
       }
     } catch (error) {
       const code = (error as { code?: string }).code;
@@ -138,6 +150,9 @@ export async function registerStudentAction(_prev: AuthState, formData: FormData
       }
       if ((error as Error).message.includes("KODE_KELAS_TIDAK_DITEMUKAN")) {
         return { error: "Kode kelas tidak ditemukan." };
+      }
+      if ((error as Error).message.includes("TINGKAT_TIDAK_COCOK")) {
+        return { error: "Tingkat kelasmu tidak sama dengan tingkat kelas itu." };
       }
       throw error;
     }

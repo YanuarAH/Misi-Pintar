@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { AVATARS } from "@/lib/avatars";
+import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 import { cn } from "@/lib/cn";
 
 export function RegisterForm({ initialJoinCode = "" }: { initialJoinCode?: string }) {
@@ -17,7 +18,11 @@ export function RegisterForm({ initialJoinCode = "" }: { initialJoinCode?: strin
     <form action={formAction} className="space-y-5" noValidate>
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
 
-      <Field label="Kode kelas" htmlFor="joinCode" hint="6 huruf/angka dari gurumu, contoh: MISI5A">
+      <Field
+        label="Kode kelas (opsional)"
+        htmlFor="joinCode"
+        hint="Punya kode dari guru? Isi 6 huruf/angka. Kosongkan bila ingin belajar mandiri."
+      >
         <input
           id="joinCode"
           name="joinCode"
@@ -26,9 +31,19 @@ export function RegisterForm({ initialJoinCode = "" }: { initialJoinCode?: strin
           autoCapitalize="characters"
           spellCheck={false}
           maxLength={6}
-          required
           placeholder="MISI5A"
         />
+      </Field>
+
+      <Field label="Tingkat kelas (opsional)" htmlFor="gradeLevel" hint="Boleh dipilih nanti di halaman Kelas saya.">
+        <select id="gradeLevel" name="gradeLevel" defaultValue="" className="input">
+          <option value="">Pilih nanti</option>
+          {GRADE_LEVELS.map((level) => (
+            <option key={level} value={level}>
+              {gradeLabel(level)}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field label="Nama tampilan" htmlFor="displayName" hint="Boleh nama panggilan. Jangan pakai nama lengkap.">
@@ -98,7 +113,8 @@ export function RegisterForm({ initialJoinCode = "" }: { initialJoinCode?: strin
 
       <p className="rounded-2xl bg-sky-soft px-4 py-3 text-xs leading-relaxed text-[#1d4b73]">
         Kami tidak meminta email, nomor telepon, atau alamat. Setelah mendaftar, kamu akan mendapat{" "}
-        <strong>kode siswa</strong> untuk masuk kembali. Simpan kode itu atau tanyakan kepada gurumu.
+        <strong>kode siswa</strong> untuk masuk kembali. Belajar mandiri bisa langsung dimulai; kelas dari guru
+        bersifat opsional.
       </p>
 
       <Button type="submit" className="w-full" disabled={pending}>

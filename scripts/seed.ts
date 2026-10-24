@@ -78,11 +78,12 @@ async function main() {
       );
       if (existingStudent.rows[0]) {
         demoStudentId = existingStudent.rows[0].id;
+        await client.query("update profiles set grade_level = coalesce(grade_level, 5) where id = $1", [demoStudentId]);
       } else {
         const pinHash = await hashSecret(DEMO_STUDENT_PIN);
         const inserted = await client.query<{ id: string }>(
-          `insert into profiles (role, display_name, avatar_key, pin_hash, access_code)
-           values ('student', 'Rani', 'rubah', $1, $2) returning id`,
+          `insert into profiles (role, display_name, avatar_key, pin_hash, access_code, grade_level)
+           values ('student', 'Rani', 'rubah', $1, $2, 5) returning id`,
           [pinHash, DEMO_STUDENT_CODE],
         );
         demoStudentId = inserted.rows[0].id;

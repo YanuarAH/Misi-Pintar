@@ -44,6 +44,16 @@ export default async function StudentDashboardPage({
         </Alert>
       ) : null}
 
+      {overview.gradeLevel === null ? (
+        <Alert tone="info">
+          Tentukan tingkat kelasmu dulu di{" "}
+          <Link href="/kelas-saya" className="font-bold underline underline-offset-4">
+            Kelas saya
+          </Link>{" "}
+          agar misi yang sesuai bisa muncul.
+        </Alert>
+      ) : null}
+
       <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
           <Avatar avatarKey={session.avatarKey} size="lg" />
@@ -51,6 +61,7 @@ export default async function StudentDashboardPage({
             <p className="text-sm font-semibold text-muted">Halo, selamat datang!</p>
             <h1 className="text-2xl font-black sm:text-3xl">{session.displayName}</h1>
             <p className="mt-0.5 text-sm text-muted">
+              {overview.gradeLevel === null ? "Tingkat kelas belum dipilih" : gradeLabel(overview.gradeLevel)} ·{" "}
               {overview.completedMissions} dari {overview.totalMissions} misi selesai · {overview.xp} XP
             </p>
           </div>
@@ -123,11 +134,9 @@ export default async function StudentDashboardPage({
         <MissionMap
           cards={overview.cards}
           emptyHint={
-            overview.classCount === 0
-              ? "Kamu belum tergabung di kelas belajar mana pun. Minta kode kelas kepada gurumu, lalu daftar ulang."
-              : overview.classGrade === null
-                ? "Gurumu belum mengatur tingkat kelas untuk kelas belajarmu, jadi misi belum bisa ditampilkan."
-                : `Belum ada misi terbit untuk ${gradeLabel(overview.classGrade)}. Coba muat ulang nanti.`
+            overview.gradeLevel === null
+              ? "Pilih tingkat kelasmu di halaman Kelas saya. Setelah itu misi yang sesuai akan muncul di sini."
+              : `Belum ada misi terbit untuk ${gradeLabel(overview.gradeLevel)}. Coba muat ulang nanti, atau tanyakan kepada gurumu.`
           }
         />
       </section>

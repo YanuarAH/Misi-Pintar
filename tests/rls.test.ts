@@ -104,12 +104,17 @@ describe("RLS: antar siswa", () => {
     expect(other).toHaveLength(0);
   });
 
-  it("siswa tidak dapat membaca profil siswa lain atau profil guru", async () => {
+  it("siswa hanya membaca profilnya sendiri dan guru kelasnya", async () => {
     const visible = await asViewer({ userId: studentA.id, role: "student" }, (query) =>
       query<{ id: string; role: string }>("select id, role from profiles"),
     );
-    expect(visible).toHaveLength(1);
-    expect(visible[0].id).toBe(studentA.id);
+
+    // Diri sendiri + guru kelas yang diikuti (dibutuhkan halaman "Kelas saya").
+    expect(visible.map((row) => row.id).sort()).toEqual([studentA.id, teacherA.id].sort());
+
+    // Bukan siswa lain di kelas yang sama, bukan guru lain.
+    expect(visible.some((row) => row.id === studentB.id)).toBe(false);
+    expect(visible.some((row) => row.id === teacherB.id)).toBe(false);
   });
 
   it("siswa tidak dapat membuat percobaan atas nama siswa lain", async () => {

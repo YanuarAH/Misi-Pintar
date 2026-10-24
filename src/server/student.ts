@@ -98,8 +98,9 @@ export type StudentOverview = {
   achievements: { key: string; earnedAt: Date }[];
   recent: { id: string; missionTitle: string; slug: string; score: number; completedAt: Date }[];
   continueCard: MissionCard | null;
-  /** Tingkat kelas dari kelas belajar siswa; null = guru belum mengatur. */
-  classGrade: number | null;
+  /** Tingkat kelas siswa (profil); null = belum dipilih. */
+  gradeLevel: number | null;
+  /** Jumlah kelas belajar yang diikuti (boleh nol untuk belajar mandiri). */
   classCount: number;
 };
 
@@ -127,11 +128,12 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
     [studentId],
   );
 
-  const classroom = await one<{ grade: number | null; total: string }>(
+  const profile = await one<{ grade_level: number | null; classes: string }>(
     viewer,
-    `select max(c.grade_level) as grade, count(*)::text as total
-       from class_members cm join classes c on c.id = cm.class_id
-      where cm.student_id = $1`,
+    `select p.grade_level,
+            (select count(*)::text from class_members cm where cm.student_id = p.id) as classes
+       from profiles p
+      where p.id = $1`,
     [studentId],
   );
 
@@ -156,9 +158,151 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
       completedAt: new Date(row.completed_at),
     })),
     continueCard,
-    classGrade: classroom?.grade ?? null,
-    classCount: Number(classroom?.total ?? 0),
+    gradeLevel: profile?.grade_level ?? null,
+    classCount: Number(profile?.classes ?? 0),
   };
+}
+
+export type StudentClassTask = {
+  slug: string;
+  title: string;
+  gradeLevel: number | null;
+  completed: boolean;
+};
+
+export type StudentClass = {
+  id: string;
+  name: string;
+  gradeLevel: number | null;
+  teacherName: string;
+  joinedAt: Date;
+  tasks: StudentClassTask[];
+};
+
+export type StudentClassesView = {
+  gradeLevel: number | null;
+  classes: StudentClass[];
+};
+
+/** Tingkat kelas profil siswa (dipakai untuk belajar mandiri). */
+export async function getStudentGrade(viewer: Viewer, studentId: string): Promise<number | null> {
+  const row = await one<{ grade_level: number | null }>(
+    viewer,
+    "select grade_level from profiles where id = $1",
+    [studentId],
+  );
+  return row?.grade_level ?? null;
+}
+
+/** Kelas belajar yang diikuti siswa beserta guru dan tugas yang diberikan ke kelas itu. */
+export async function getStudentClasses(viewer: Viewer, studentId: string): Promise<StudentClassesView> {
+  const classes = await rows<{
+    id: string;
+    name: string;
+    grade_level: number | null;
+    teacher_name: string;
+    joined_at: Date;
+  }>(
+    viewer,
+    `select c.id, c.name, c.grade_level, t.display_name as teacher_name, cm.joined_at
+       from class_members cm
+       join classes c on c.id = cm.class_id
+       join profiles t on t.id = c.teacher_id
+      where cm.student_id = $1
+      order by cm.joined_at asc`,
+    [studentId],
+  );
+
+  const grade = await getStudentGrade(viewer, studentId);
+  if (classes.length === 0) return { gradeLevel: grade, classes: [] };
+
+  const tasks = await rows<{
+    class_id: string;
+    slug: string;
+    title: string;
+    grade_level: number | null;
+    completed: boolean;
+  }>(
+    viewer,
+    `select mc.class_id, m.slug, m.title, m.grade_level,
+            exists (
+              select 1 from attempts a
+               where a.student_id = $1 and a.mission_id = m.id and a.completed_at is not null
+            ) as completed
+       from mission_classes mc
+       join missions m on m.id = mc.mission_id
+      where mc.class_id = any($2::uuid[])
+        and m.is_published and m.archived_at is null
+      order by m.order_index asc`,
+    [studentId, classes.map((row) => row.id)],
+  );
+
+  return {
+    gradeLevel: grade,
+    classes: classes.map((row) => ({
+      id: row.id,
+      name: row.name,
+      gradeLevel: row.grade_level,
+      teacherName: row.teacher_name,
+      joinedAt: new Date(row.joined_at),
+      tasks: tasks
+        .filter((task) => task.class_id === row.id)
+        .map((task) => ({
+          slug: task.slug,
+          title: task.title,
+          gradeLevel: task.grade_level,
+          completed: task.completed,
+        })),
+    })),
+  };
+}
+
+/** Menyimpan tingkat kelas siswa sendiri. */
+export async function setStudentGrade(viewer: Viewer, studentId: string, gradeLevel: number): Promise<void> {
+  if (!Number.isInteger(gradeLevel) || gradeLevel < 1 || gradeLevel > 6) {
+    throw new Error("Tingkat kelas harus 1-6.");
+  }
+  await rows(
+    viewer,
+    "update profiles set grade_level = $2 where id = $1 and role = 'student' returning id",
+    [studentId, gradeLevel],
+  );
+}
+
+export type JoinClassResult = {
+  status: string;
+  className: string | null;
+  teacherName: string | null;
+  gradeLevel: number | null;
+};
+
+/** Bergabung ke kelas belajar dengan kode undangan guru (tanpa membuat akun baru). */
+export async function joinClassWithCode(viewer: Viewer, code: string): Promise<JoinClassResult> {
+  const result = await one<{
+    status: string;
+    class_name: string | null;
+    teacher_name: string | null;
+    grade_level: number | null;
+  }>(viewer, "select status, class_name, teacher_name, grade_level from public.app_join_class($1)", [code]);
+
+  if (!result) throw new Error("Kelas gagal diproses. Coba lagi.");
+
+  return {
+    status: result.status,
+    className: result.class_name,
+    teacherName: result.teacher_name,
+    gradeLevel: result.grade_level,
+  };
+}
+
+/** Keluar dari kelas belajar (hanya keanggotaan sendiri; akun & progres tetap). */
+export async function leaveClass(viewer: Viewer, studentId: string, classId: string): Promise<boolean> {
+  const left = await rows<{ class_id: string }>(
+    viewer,
+    "delete from class_members where class_id = $1 and student_id = $2 returning class_id",
+    [classId, studentId],
+  );
+  return left.length > 0;
 }
 
 export type MissionDetailView = {

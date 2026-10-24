@@ -165,6 +165,10 @@ export default async function ClassDetailPage({
                           {student.displayName}
                         </Link>
                       </div>
+                      <p className="mt-0.5 pl-0.5 text-xs text-muted">
+                        {student.gradeLevel === null ? "Tingkat belum dipilih" : gradeLabel(student.gradeLevel)}
+                        {student.classCount > 1 ? ` · ikut ${student.classCount} kelas` : ""}
+                      </p>
                     </td>
                     <td>
                       <div className="flex items-center gap-1.5">

@@ -101,22 +101,39 @@ export async function createClassroom(
 
 export async function createStudent(options: {
   className?: string;
-  classId: string;
+  /** Opsional: siswa boleh belajar mandiri tanpa kelas. */
+  classId?: string;
   pin?: string;
   avatarKey?: string;
+  /** Default: tingkat kelas dari kelasnya; tanpa kelas default null (belum dipilih). */
+  gradeLevel?: number | null;
 }): Promise<{ id: string; accessCode: string; displayName: string }> {
   const accessCode = randomCode(8);
   const displayName = `Siswa ${accessCode.slice(0, 4)}`;
   const pinHash = await hashSecret(options.pin ?? "1234");
+
+  let gradeLevel = options.gradeLevel ?? null;
+  if (options.classId && options.gradeLevel === undefined) {
+    const [classroom] = await adminQuery<{ grade_level: number | null }>(
+      "select grade_level from classes where id = $1",
+      [options.classId],
+    );
+    gradeLevel = classroom?.grade_level ?? null;
+  }
+
   const [profile] = await adminQuery<{ id: string }>(
-    `insert into profiles (role, display_name, avatar_key, pin_hash, access_code)
-     values ('student', $1, $2, $3, $4) returning id`,
-    [displayName, options.avatarKey ?? "panda", pinHash, accessCode],
+    `insert into profiles (role, display_name, avatar_key, pin_hash, access_code, grade_level)
+     values ('student', $1, $2, $3, $4, $5) returning id`,
+    [displayName, options.avatarKey ?? "panda", pinHash, accessCode, gradeLevel],
   );
-  await adminQuery("insert into class_members (class_id, student_id) values ($1, $2)", [
-    options.classId,
-    profile.id,
-  ]);
+
+  if (options.classId) {
+    await adminQuery("insert into class_members (class_id, student_id) values ($1, $2)", [
+      options.classId,
+      profile.id,
+    ]);
+  }
+
   return { id: profile.id, accessCode, displayName };
 }
 

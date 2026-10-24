@@ -75,6 +75,10 @@ export type RosterStudent = {
   displayName: string;
   avatarKey: string;
   accessCode: string;
+  /** Tingkat kelas dari profil siswa (belajar mandiri); null = belum dipilih. */
+  gradeLevel: number | null;
+  /** Berapa kelas belajar yang diikuti siswa ini (boleh lebih dari satu). */
+  classCount: number;
   joinedAt: Date;
   attempts: number;
   completedMissions: number;
@@ -86,12 +90,24 @@ export async function setClassGrade(viewer: Viewer, classId: string, gradeLevel:
   if (!Number.isInteger(gradeLevel) || gradeLevel < 1 || gradeLevel > 6) {
     throw new TeacherError("Tingkat kelas harus 1-6.");
   }
-  const updated = await one<{ id: string }>(
-    viewer,
-    "update classes set grade_level = $2 where id = $1 returning id",
-    [classId, gradeLevel],
-  );
-  if (!updated) throw new TeacherError("Kelas tidak ditemukan.");
+
+  try {
+    const updated = await one<{ id: string }>(
+      viewer,
+      "update classes set grade_level = $2 where id = $1 returning id",
+      [classId, gradeLevel],
+    );
+    if (!updated) throw new TeacherError("Kelas tidak ditemukan.");
+  } catch (error) {
+    // Trigger database menolak perubahan yang membuat anggota jadi tidak cocok.
+    const message = (error as Error).message ?? "";
+    if (message.includes("anggota dengan tingkat kelas berbeda")) {
+      throw new TeacherError(
+        "Kelas ini masih berisi siswa dengan tingkat kelas lain. Keluarkan siswa tersebut dulu, lalu ubah tingkat kelas.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getClassDetail(viewer: Viewer, classId: string) {
@@ -113,6 +129,8 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
     display_name: string;
     avatar_key: string;
     access_code: string;
+    grade_level: number | null;
+    class_count: string;
     joined_at: Date;
     attempts: string;
     completed_missions: string;
@@ -120,7 +138,9 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
     last_active_at: Date | null;
   }>(
     viewer,
-    `select p.id, p.display_name, p.avatar_key, p.access_code, cm.joined_at,
+    `select p.id, p.display_name, p.avatar_key, p.access_code, p.grade_level,
+            (select count(*) from class_members x where x.student_id = p.id) as class_count,
+            cm.joined_at,
             (select count(*) from attempts a where a.student_id = p.id and a.completed_at is not null) as attempts,
             (select count(distinct a.mission_id) from attempts a
               where a.student_id = p.id and a.completed_at is not null) as completed_missions,
@@ -186,6 +206,8 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
       displayName: row.display_name,
       avatarKey: row.avatar_key,
       accessCode: row.access_code,
+      gradeLevel: row.grade_level,
+      classCount: Number(row.class_count),
       joinedAt: new Date(row.joined_at),
       attempts: Number(row.attempts),
       completedMissions: Number(row.completed_missions),

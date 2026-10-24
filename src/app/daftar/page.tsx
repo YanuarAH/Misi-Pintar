@@ -27,7 +27,8 @@ export default async function RegisterPage({
         <div className="card p-6 sm:p-8">
           <h1 className="text-2xl font-black sm:text-3xl">Buat akun siswa</h1>
           <p className="mt-2 text-sm text-muted">
-            Kamu hanya perlu kode kelas dari guru. Tidak perlu email atau nomor telepon.
+            Tidak perlu email atau nomor telepon. Kode kelas dari guru bersifat opsional — kamu bisa belajar
+            mandiri lebih dulu dan bergabung ke kelas kapan saja.
           </p>
           <div className="mt-6">
             <RegisterForm initialJoinCode={initialJoinCode} />
