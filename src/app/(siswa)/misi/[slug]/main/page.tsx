@@ -111,6 +111,7 @@ export default async function MissionPlayPage({ params }: { params: Promise<{ sl
         missionTitle={state.mission.title}
         questions={state.questions}
         startIndex={state.startIndex}
+        allAnswered={state.allAnswered}
       />
     </div>
   );

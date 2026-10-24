@@ -26,7 +26,8 @@ lewat UI. Tidak ada model AI, tidak ada layanan berbayar, tidak ada iklan atau p
 | `/misi/[slug]` | Ringkasan misi: cerita, tujuan pembelajaran, jumlah soal, estimasi durasi, hadiah XP |
 | `/misi/[slug]/main` | Pengerjaan soal satu per satu, petunjuk, pemeriksaan jawaban, pembahasan, progres tersimpan otomatis |
 | `/hasil/[attemptId]` | Skor, XP, lencana yang didapat, soal yang sudah dikuasai, materi yang perlu diulang, pembahasan per soal |
-| `/progres` | Total XP, misi selesai, lencana, nilai terakhir/terbaik per misi, riwayat 30 percobaan terakhir |
+| `/progres` | Total XP, misi selesai, lencana, nilai terakhir/terbaik per misi, riwayat 30 percobaan terakhir, tombol lanjutkan/batalkan untuk percobaan yang belum selesai |
+| `/profil` | Ubah nama tampilan dan avatar; menampilkan kode siswa |
 
 ### Guru
 
@@ -140,8 +141,10 @@ Perintah lain:
 | `npm run db:migrate` | Menerapkan migrasi yang belum jalan (`--reset` untuk drop & buat ulang) |
 | `npm run db:seed` | Mengisi data yang belum ada; `-- --force` menimpa teks misi/soal dengan versi seed |
 | `npm run db:reset` | Reset total + seed ulang |
+| `npm run db:cleanup` | Hapus percobaan terbengkalai (belum selesai, tanpa jawaban, > 7 hari); `-- --days=30` untuk ambang lain |
 | `npm run typecheck` | TypeScript strict tanpa emisi |
-| `npm test` | 80 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
+| `npm run test:http` | Smoke test HTTP (routing, guard anonim, akses per peran); arahkan `APP_URL` ke hasil deployment |
+| `npm test` | 93 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
 | `npm run build` / `npm start` | Build & jalankan versi produksi |
 
 ### Variabel environment
@@ -196,6 +199,9 @@ masih password demo (kurang dari 12 karakter). Jangan aktifkan akun demo siswa d
 - Rate limit login/pendaftaran 8–12 percobaan per 10 menit per kode (in-memory, per instance —
   lihat batasan).
 - Tidak ada analytics, iklan, atau leaderboard publik.
+- Header keamanan: `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+  dan `Content-Security-Policy` (produksi, `default-src 'self'`). Middleware hanya memeriksa
+  keberadaan cookie sesi; keabsahan sesi dan hak akses tetap diverifikasi di server + RLS.
 
 ### Yang perlu diketahui sebelum produksi
 
@@ -241,9 +247,11 @@ UI guru memakai **soft delete** (`archived_at`) untuk soal dan misi.
 Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 skenario wajib):
 
 - `npx tsc --noEmit` — bersih.
-- `npx vitest run` — **88 test lulus** (8 file): normalisasi angka, skor/XP, lencana, verifikasi
+- `npx vitest run` — **93 test lulus** (8 file): normalisasi angka, skor/XP, lencana, verifikasi
   aritmetika 30 soal, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
-  siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, dan konfigurasi seed.
+  siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, pembatalan percobaan,
+  resume setelah semua soal dijawab, dan konfigurasi seed.
+- `npm run test:http` — 15/15 pemeriksaan HTTP lulus.
 - `npm run build` — sukses, 16 route.
 - Uji manual browser (production build):
   - daftar siswa baru → dapat kode akses → dashboard menampilkan hanya misi 1 terbuka;
@@ -254,6 +262,10 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap 15 sken
   - guru login → dasbor berisi 2 siswa, 2 penyelesaian, rata-rata 90%, soal tersulit;
   - guru menambah soal lewat editor ("Soal ditambahkan", 10 → 11), lalu menghapusnya lewat konfirmasi;
   - guru membuka kelas, melihat kode siswa, membuka laporan siswa dan detail percobaannya;
+  - percobaan yang ditinggalkan tampil sebagai "Sedang dikerjakan" di `/progres` dengan tombol
+    "Lanjutkan" dan "Batalkan" (konfirmasi dua langkah);
+  - siswa dapat mengganti nama tampilan/avatar di `/profil` dan header langsung berubah;
+  - `npm run test:http` lulus 15/15 pemeriksaan (guard anonim 307, data lintas peran tidak bocor);
   - tidak ada overflow horizontal pada lebar 375px di `/`, `/belajar`, `/misi/[slug]`, `/progres`;
   - mengulang misi yang sudah 100% (10/10) hanya menambah 20 XP — dari 100 ke 120, batas maksimal
     misi itu — dan halaman hasil menjelaskan alasannya secara eksplisit.
@@ -269,7 +281,6 @@ Belum dikerjakan:
 - Belum ada mode gelap, pengaturan font besar, atau terjemahan.
 - Belum ada ekspor CSV laporan kelas; belum ada cetak laporan.
 - Hanya Matematika, 3 misi, 30 soal (sesuai cakupan MVP).
-- Belum ada pengaturan profil siswa di UI (avatar/nama bisa diubah lewat action, form belum dipasang).
 - Belum ada test E2E otomatis (Playwright); verifikasi browser dilakukan manual.
 - Belum ada ESLint.
 

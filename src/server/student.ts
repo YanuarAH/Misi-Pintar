@@ -162,6 +162,8 @@ export type PlayState = {
   questions: PlayQuestion[];
   answeredIndexes: number[];
   startIndex: number;
+  /** True bila semua soal sudah dijawab (mis. halaman di-refresh tepat setelah soal terakhir). */
+  allAnswered: boolean;
 };
 
 /** Mengambil misi untuk dimainkan; hanya mengirim data yang aman ke klien. */
@@ -232,6 +234,7 @@ async function buildPlayState(
     })),
     answeredIndexes,
     startIndex: firstUnanswered === -1 ? Math.max(0, questionRows.length - 1) : firstUnanswered,
+    allAnswered: answeredIndexes.length === questionRows.length,
   };
 }
 
@@ -298,6 +301,24 @@ export async function startOrResumeAttempt(viewer: Viewer, studentId: string, sl
   const state = await buildPlayState(viewer, mission, attempt);
   if (!state) return { ok: false, reason: "empty" };
   return { ok: true, state };
+}
+
+/**
+ * Membatalkan percobaan yang belum selesai. Percobaan selesai tidak bisa dihapus
+ * agar riwayat belajar (dan laporan guru) tetap utuh.
+ */
+export async function cancelAttempt(
+  viewer: Viewer,
+  studentId: string,
+  attemptId: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const deleted = await one<{ id: string }>(
+    viewer,
+    "delete from attempts where id = $1 and student_id = $2 and completed_at is null returning id",
+    [attemptId, studentId],
+  );
+  if (!deleted) return { ok: false, reason: "Percobaan ini tidak bisa dibatalkan." };
+  return { ok: true };
 }
 
 /** Membaca percobaan berjalan tanpa menulis apa pun. Aman dipanggil saat render GET. */
@@ -586,8 +607,10 @@ export type ProgressView = {
     score: number;
     correctCount: number;
     totalQuestions: number;
+    answeredCount: number;
     xpEarned: number;
     completedAt: Date | null;
+    inProgress: boolean;
   }[];
   perMission: { slug: string; title: string; lastScore: number | null; bestScore: number | null; attempts: number; unlocked: boolean }[];
 };
@@ -614,11 +637,13 @@ export async function getProgress(viewer: Viewer, studentId: string): Promise<Pr
     score: number;
     correct_count: number;
     total_questions: number;
+    answered_count: string;
     xp_earned: number;
     completed_at: Date | null;
   }>(
     viewer,
-    `select a.id, m.title, m.slug, a.score, a.correct_count, a.total_questions, a.xp_earned, a.completed_at
+    `select a.id, m.title, m.slug, a.score, a.correct_count, a.total_questions, a.xp_earned, a.completed_at,
+            (select count(*) from attempt_answers aa where aa.attempt_id = a.id) as answered_count
        from attempts a join missions m on m.id = a.mission_id
       where a.student_id = $1 order by a.started_at desc limit 30`,
     [studentId],
@@ -636,8 +661,10 @@ export async function getProgress(viewer: Viewer, studentId: string): Promise<Pr
       score: row.score,
       correctCount: row.correct_count,
       totalQuestions: row.total_questions,
+      answeredCount: Number(row.answered_count),
       xpEarned: row.xp_earned,
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
+      inProgress: row.completed_at === null,
     })),
     perMission: cards.map((card) => ({
       slug: card.slug,

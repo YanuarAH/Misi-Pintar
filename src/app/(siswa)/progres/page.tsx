@@ -1,19 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpenCheck, History, Sparkles, Star, Trophy } from "lucide-react";
+import { BookOpenCheck, History, Play, Sparkles, Star, Trophy } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { getProgress } from "@/server/student";
+import { cancelAttemptAction, startMissionAction } from "@/app/actions/student";
 import { AchievementBadge } from "@/components/ui/AchievementBadge";
-import { ButtonLink } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { ACHIEVEMENT_KEYS } from "@/lib/achievements";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Progres belajar", robots: { index: false } };
 
-export default async function ProgressPage() {
+export default async function ProgressPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dibatalkan?: string; error?: string }>;
+}) {
   const session = await requireStudent();
-  const progress = await getProgress(viewerOf(session), session.id);
+  const [progress, query] = await Promise.all([
+    getProgress(viewerOf(session), session.id),
+    searchParams,
+  ]);
   const earnedKeys = new Set(progress.achievements.map((item) => item.key));
 
   return (
@@ -24,6 +34,11 @@ export default async function ProgressPage() {
           Semua riwayat percobaanmu tersimpan. Ulangi misi kapan saja untuk memperbaiki skor.
         </p>
       </header>
+
+      {query.error ? <Alert tone="error">{query.error}</Alert> : null}
+      {query.dibatalkan ? (
+        <Alert tone="success">Percobaan yang belum selesai sudah dibatalkan.</Alert>
+      ) : null}
 
       <section aria-label="Ringkasan" className="grid grid-cols-3 gap-3">
         {[
@@ -167,26 +182,54 @@ export default async function ProgressPage() {
                   <tr key={item.id}>
                     <td className="font-bold">{item.missionTitle}</td>
                     <td className="whitespace-nowrap text-xs text-muted">
-                      {item.completedAt ? formatDateTime(item.completedAt) : "Belum selesai"}
+                      {item.inProgress ? "Sedang dikerjakan" : formatDateTime(item.completedAt)}
                     </td>
                     <td className="text-center">
-                      {item.correctCount}/{item.totalQuestions}
+                      {item.inProgress
+                        ? `${item.answeredCount}/${item.totalQuestions} dijawab`
+                        : `${item.correctCount}/${item.totalQuestions}`}
                     </td>
                     <td className="text-center">
-                      <span
-                        className={cn(
-                          "chip",
-                          item.score >= 80 ? "border-leaf/30 bg-leaf-soft text-[#1c5b36]" : "bg-paper",
-                        )}
-                      >
-                        {item.score}
-                      </span>
+                      {item.inProgress ? (
+                        <span className="chip border-sun/40 bg-sun-soft text-[#7a4a00]">Belum selesai</span>
+                      ) : (
+                        <span
+                          className={cn(
+                            "chip",
+                            item.score >= 80 ? "border-leaf/30 bg-leaf-soft text-[#1c5b36]" : "bg-paper",
+                          )}
+                        >
+                          {item.score}
+                        </span>
+                      )}
                     </td>
-                    <td className="text-center text-muted">{item.xpEarned}</td>
-                    <td className="text-right">
-                      <Link href={`/hasil/${item.id}`} className="text-sm font-bold text-primary hover:underline">
-                        Lihat
-                      </Link>
+                    <td className="text-center text-muted">{item.inProgress ? "—" : item.xpEarned}</td>
+                    <td>
+                      {item.inProgress ? (
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <form action={startMissionAction}>
+                            <input type="hidden" name="slug" value={item.slug} />
+                            <Button type="submit" size="sm">
+                              <Play className="size-3.5" aria-hidden="true" />
+                              Lanjutkan
+                            </Button>
+                          </form>
+                          <ConfirmSubmit
+                            action={cancelAttemptAction}
+                            hiddenFields={{ attemptId: item.id }}
+                            triggerLabel="Batalkan"
+                            confirmLabel="Ya, batalkan"
+                            question="Hapus progres percobaan ini?"
+                            variant="secondary"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <Link href={`/hasil/${item.id}`} className="text-sm font-bold text-primary hover:underline">
+                            Lihat
+                          </Link>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Map, Star, TrendingUp } from "lucide-react";
+import { Map, Star, TrendingUp, UserRound } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
 import { Logo } from "./Logo";
@@ -14,7 +14,7 @@ export function StudentHeader({
   displayName: string;
   avatarKey: string;
   xp: number;
-  active?: "belajar" | "progres" | "misi";
+  active?: "belajar" | "progres" | "misi" | "profil";
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
@@ -51,8 +51,16 @@ export function StudentHeader({
             <Star className="size-3.5 text-sun" aria-hidden="true" />
             {xp} XP
           </span>
-          <span className="hidden text-sm font-bold text-ink sm:inline">{displayName}</span>
-          <Avatar avatarKey={avatarKey} size="sm" />
+          <Link
+            href="/profil"
+            className="hidden items-center gap-2 rounded-full px-1.5 py-1 text-sm font-bold text-ink hover:bg-white sm:flex"
+            aria-label="Buka profil saya"
+          >
+            {displayName}
+          </Link>
+          <Link href="/profil" aria-label="Buka profil saya" className="rounded-full">
+            <Avatar avatarKey={avatarKey} size="sm" />
+          </Link>
           <form action={logoutAction}>
             <button type="submit" className="rounded-full px-2 py-1.5 text-xs font-bold text-muted hover:text-ink">
               Keluar
@@ -81,6 +89,16 @@ export function StudentHeader({
           )}
         >
           <TrendingUp className="size-4" aria-hidden="true" /> Progres
+        </Link>
+        <Link
+          href="/profil"
+          aria-current={active === "profil" ? "page" : undefined}
+          className={cn(
+            "flex min-h-11 flex-1 items-center justify-center gap-1.5 text-xs font-bold",
+            active === "profil" ? "text-primary" : "text-muted",
+          )}
+        >
+          <UserRound className="size-4" aria-hidden="true" /> Profil
         </Link>
       </nav>
     </header>

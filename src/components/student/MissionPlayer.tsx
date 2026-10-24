@@ -27,11 +27,13 @@ export function MissionPlayer({
   missionTitle,
   questions,
   startIndex,
+  allAnswered,
 }: {
   attemptId: string;
   missionTitle: string;
   questions: PlayQuestion[];
   startIndex: number;
+  allAnswered: boolean;
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(Math.min(Math.max(startIndex, 0), questions.length - 1));
@@ -41,6 +43,7 @@ export function MissionPlayer({
   const [hintOpen, setHintOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(allAnswered);
   const feedbackRef = useRef<HTMLDivElement | null>(null);
 
   const question = questions[index];
@@ -94,6 +97,37 @@ export function MissionPlayer({
     }
     setIndex((current) => current + 1);
     resetForNext();
+  }
+
+  if (showCompletion) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <section className="card p-6 text-center">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-leaf-soft text-[#1c5b36]">
+            <CheckCircle2 className="size-6" aria-hidden="true" />
+          </span>
+          <h1 className="mt-3 text-xl font-black">Semua soal sudah dijawab</h1>
+          <p className="mt-1.5 text-sm text-muted">
+            Progresmu tersimpan. Tekan tombol di bawah untuk melihat nilai dan pembahasan.
+          </p>
+          {error ? (
+            <div className="mt-4">
+              <Alert tone="error">{error}</Alert>
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <Button onClick={handleFinish} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+              Lihat hasil misi
+              {!busy ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
+            </Button>
+            <Button variant="secondary" onClick={() => setShowCompletion(false)} disabled={busy}>
+              Periksa jawaban terakhir
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -218,8 +252,11 @@ export function MissionPlayer({
         ) : null}
 
         {error ? (
-          <div className="mt-4">
+          <div className="mt-4 space-y-2">
             <Alert tone="error">{error}</Alert>
+            <Button variant="secondary" size="sm" onClick={handleCheck} disabled={busy}>
+              Coba lagi
+            </Button>
           </div>
         ) : null}
 

@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { completeAttempt, startOrResumeAttempt, submitAnswer, updateStudentProfile } from "@/server/student";
+import {
+  cancelAttempt,
+  completeAttempt,
+  startOrResumeAttempt,
+  submitAnswer,
+  updateStudentProfile,
+} from "@/server/student";
 import { getSession } from "@/lib/session";
 import { profileUpdateSchema } from "@/lib/validation";
 import type { AnswerFeedback } from "@/server/types";
@@ -84,6 +90,24 @@ export async function completeAttemptAction(attemptId: string): Promise<{ ok: bo
     console.error("completeAttemptAction", error);
     return { ok: false, error: "Hasil misi gagal disimpan. Coba lagi, ya." };
   }
+}
+
+/** Membatalkan percobaan yang masih berjalan (mis. siswa keluar di tengah misi). */
+export async function cancelAttemptAction(formData: FormData): Promise<void> {
+  const session = await getSession();
+  if (!session || session.role !== "student") redirect("/masuk");
+
+  const attemptId = String(formData.get("attemptId") ?? "");
+  try {
+    await cancelAttempt({ userId: session.id, role: "student" }, session.id, attemptId);
+  } catch (error) {
+    console.error("cancelAttemptAction", error);
+    redirect("/progres?error=" + encodeURIComponent("Percobaan gagal dibatalkan. Coba lagi."));
+  }
+
+  revalidatePath("/progres");
+  revalidatePath("/belajar");
+  redirect("/progres?dibatalkan=1");
 }
 
 export type ProfileState = { error?: string; success?: string } | null;

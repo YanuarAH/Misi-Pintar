@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closePool } from "@/lib/db";
 import {
+  cancelAttempt,
   completeAttempt,
   getAttemptResult,
   getOpenAttemptState,
@@ -428,6 +429,28 @@ describe("aturan XP dan syarat penyelesaian", () => {
     expect(result?.xpPotential).toBe(50);
   });
 
+  it("resume setelah semua soal dijawab ditandai allAnswered", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    const started = await startOrResumeAttempt(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    for (const question of started.state.questions) {
+      const correctAnswer =
+        question.id === questionIds[2] ? NUMERIC_ANSWER : question.id === questionIds[1] ? "3/4" : CORRECT_CHOICE;
+      await submitAnswer(viewerOf(fresh.id), fresh.id, {
+        attemptId: started.state.attemptId,
+        questionId: question.id,
+        answer: correctAnswer,
+      });
+    }
+
+    const state = await getOpenAttemptState(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(state?.allAnswered).toBe(true);
+    expect(state?.answeredIndexes).toHaveLength(3);
+    expect(state?.startIndex).toBe(2);
+  });
+
   it("percobaan ulang dengan skor lebih rendah tidak mengurangi XP", async () => {
     const fresh = await createStudent({ classId: classroomId });
     await runAttempt(fresh.id, [CORRECT_CHOICE, "3/4", NUMERIC_ANSWER]); // 3/3 -> 50
@@ -441,5 +464,66 @@ describe("aturan XP dan syarat penyelesaian", () => {
 
     const progress = await getProgress(viewerOf(fresh.id), fresh.id);
     expect(progress.xp).toBe(50);
+  });
+});
+
+describe("pembatalan percobaan", () => {
+  const viewerOf = (id: string) => ({ userId: id, role: "student" as const });
+
+  it("siswa dapat membatalkan percobaannya yang belum selesai", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    const started = await startOrResumeAttempt(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    await submitAnswer(viewerOf(fresh.id), fresh.id, {
+      attemptId: started.state.attemptId,
+      questionId: started.state.questions[0].id,
+      answer: CORRECT_CHOICE,
+    });
+
+    const cancelled = await cancelAttempt(viewerOf(fresh.id), fresh.id, started.state.attemptId);
+    expect(cancelled.ok).toBe(true);
+
+    const remaining = await adminQuery<{ id: string }>("select id from attempts where id = $1", [
+      started.state.attemptId,
+    ]);
+    expect(remaining).toHaveLength(0);
+  });
+
+  it("percobaan yang sudah selesai tidak dapat dibatalkan", async () => {
+    const cancelled = await cancelAttempt(studentViewer(), student.id, attemptId);
+    expect(cancelled.ok).toBe(false);
+
+    const remaining = await adminQuery<{ id: string }>("select id from attempts where id = $1", [attemptId]);
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("siswa lain tidak dapat membatalkan percobaan orang lain", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    const started = await startOrResumeAttempt(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    const cancelled = await cancelAttempt(viewerOf(otherStudent.id), otherStudent.id, started.state.attemptId);
+    expect(cancelled.ok).toBe(false);
+
+    const remaining = await adminQuery<{ id: string }>("select id from attempts where id = $1", [
+      started.state.attemptId,
+    ]);
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("riwayat menandai percobaan yang masih berjalan", async () => {
+    const fresh = await createStudent({ classId: classroomId });
+    const started = await startOrResumeAttempt(viewerOf(fresh.id), fresh.id, mission1.slug);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    const progress = await getProgress(viewerOf(fresh.id), fresh.id);
+    const inProgress = progress.history.filter((item) => item.inProgress);
+    expect(inProgress).toHaveLength(1);
+    expect(inProgress[0].answeredCount).toBe(0);
+    expect(inProgress[0].completedAt).toBeNull();
   });
 });

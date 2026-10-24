@@ -32,7 +32,7 @@ uji ke database pengembangan atau produksi.**
 ```
 npx vitest run
 Test Files  8 passed (8)
-Tests       88 passed (88)
+Tests       93 passed (93)
 ```
 
 ## Matriks 15 skenario wajib
@@ -49,6 +49,8 @@ Tests       88 passed (88)
 | 8 | Bonus misi hanya sekali per percobaan; XP tidak bisa difarming dengan mengulang | `tests/mission-flow.test.ts` ("penyelesaian ganda tidak menambah XP lagi", "XP hanya bertambah ketika rekor skor membaik", "percobaan ulang dengan skor lebih rendah tidak mengurangi XP") |
 | 8b | Misi tidak bisa diselesaikan sebelum semua soal dijawab | `tests/mission-flow.test.ts` ("menolak menyelesaikan misi bila masih ada soal yang belum dijawab") |
 | 8c | Seed produksi menolak kredensial default | `tests/seed-config.test.ts` |
+| 8d | Percobaan terbengkalai bisa dibatalkan, percobaan selesai tidak | `tests/mission-flow.test.ts` (describe "pembatalan percobaan") |
+| 8e | Refresh setelah semua soal dijawab langsung menawarkan hasil | `tests/mission-flow.test.ts` ("resume setelah semua soal dijawab ditandai allAnswered") |
 | 9 | Pengulangan misi tidak menghapus histori | `tests/mission-flow.test.ts` ("mengulang misi membuat percobaan baru…", dua baris attempts) |
 | 10 | Misi kedua terbuka setelah misi pertama selesai | `tests/mission-flow.test.ts` (terkunci → selesai → terbuka) + `/progres` di browser |
 | 11 | Perubahan materi tidak merusak riwayat | `tests/mission-flow.test.ts` (soal diarsipkan, hasil lama tetap 3 jawaban) + `teacher-access.test.ts` (soft delete) |
@@ -84,6 +86,18 @@ Production build (`npm run build && npm start`, port 3100), browser sungguhan:
 8. Guru: login, dasbor (2 siswa, 2 penyelesaian, 90% rata-rata, soal tersulit), tambah soal ("Soal ditambahkan", 10 → 11), hapus dengan konfirmasi (kembali 10), buka kelas, buka laporan siswa, buka detail percobaan siswa.
 9. Cek responsif 375 px pada `/`, `/belajar`, `/misi/[slug]`, `/progres`: tidak ada scroll horizontal.
 10. Render GET pada `/misi/[slug]/main` tidak lagi membuat percobaan kosong (diverifikasi lewat hitungan baris `attempts` sebelum/sesudah).
+
+## Smoke test HTTP
+
+```bash
+npm run build && npm start          # terminal lain
+npm run test:http                   # default http://localhost:3000
+APP_URL=https://domain-anda npm run test:http
+```
+
+Script `scripts/smoke.ts` membuat sesi sementara langsung di database (tanpa menyimpan password),
+lalu memeriksa: halaman publik 200, guard anonim mengembalikan 307, area siswa/guru dapat dibuka
+oleh peran yang tepat, dan data peran lain tidak ikut terkirim. Hasil terakhir: **15/15 lulus**.
 
 ## Belum tercakup otomatis
 
