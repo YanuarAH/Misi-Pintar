@@ -1,4 +1,4 @@
-import { ArrowRight, ListChecks } from "lucide-react";
+import { ListChecks } from "lucide-react";
 import { ButtonLink } from "@/components/ui/Button";
 
 const emojiBySlug: Record<string, string> = {
@@ -24,7 +24,7 @@ export function MissionPreviewCard({
     <article className="card flex h-full flex-col gap-3 p-5">
       <div className="flex items-center justify-between">
         <span className="flex size-12 items-center justify-center rounded-2xl bg-paper text-2xl ring-1 ring-line">
-          <span aria-hidden="true">{emojiBySlug[slug] ?? "✨"}</span>
+          <span aria-hidden="true">{emojiBySlug[slug] ?? "🎯"}</span>
         </span>
         <span className="chip">Misi {orderIndex}</span>
       </div>
@@ -34,9 +34,8 @@ export function MissionPreviewCard({
         <ListChecks className="size-4" aria-hidden="true" />
         {questionCount} soal · umpan balik langsung
       </div>
-      <ButtonLink href="/masuk" variant="secondary" size="sm" className="mt-1 w-full justify-between">
-        Coba misi ini
-        <ArrowRight className="size-4" aria-hidden="true" />
+      <ButtonLink href="/masuk" variant="secondary" size="sm" className="mt-1 w-full justify-center">
+        Buka petualangan misi
       </ButtonLink>
     </article>
   );

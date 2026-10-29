@@ -7,7 +7,6 @@ import { getMissionForEdit } from "@/server/teacher";
 import {
   archiveMissionAction,
   archiveQuestionAction,
-  setMissionClassesAction,
   togglePublishAction,
 } from "@/app/actions/teacher";
 import { gradeLabel } from "@/lib/curriculum";
@@ -33,8 +32,7 @@ export default async function MissionEditorPage({
   const data = await getMissionForEdit(viewerOf(session), id, session.id);
   if (!data) notFound();
 
-  const { mission, questions, stats, publishIssues, slotCount, options, classes, assignedClassIds } = data;
-  const compatibleClasses = classes.filter((item) => item.gradeLevel === mission.grade_level);
+  const { mission, questions, stats, publishIssues, slotCount, options } = data;
   const canPublish = publishIssues.length === 0;
   const nextOrder = questions.length + 1;
   const nextSlot = questions.reduce((max, question) => Math.max(max, question.slot_index), 0) + 1;
@@ -47,7 +45,7 @@ export default async function MissionEditorPage({
       </Link>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {tersimpan === "kelas" ? <Alert tone="success">Penugasan kelas tersimpan.</Alert> : null}
+      {tersimpan === "kelas" ? <Alert tone="success">Perubahan tersimpan.</Alert> : null}
 
       <header className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -68,6 +66,16 @@ export default async function MissionEditorPage({
               </span>
               <span className="chip bg-paper">{questions.length} soal tersimpan</span>
               <span className="chip bg-paper">Urutan {mission.order_index}</span>
+              <span
+                className={cn(
+                  "chip",
+                  mission.audience === "class_only"
+                    ? "border-primary/30 bg-primary-soft text-primary-strong"
+                    : "bg-paper",
+                )}
+              >
+                {mission.audience === "class_only" ? "Misi kelas" : "Belajar mandiri"}
+              </span>
               <span
                 className={cn(
                   "chip",
@@ -156,52 +164,14 @@ export default async function MissionEditorPage({
       </header>
 
       <section className="card p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="text-base font-black">Kelas belajar yang ditugaskan</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              Kosongkan semua centang agar misi ini terbuka untuk semua kelas tingkat {gradeLabel(mission.grade_level)}.
-              Penugasan tidak menyalin misi.
-            </p>
-          </div>
-          <span className="chip bg-paper">{assignedClassIds.length} kelas</span>
-        </div>
-
-        {mission.grade_level === null ? (
-          <div className="mt-3">
-            <Alert tone="error">Pilih tingkat kelas misi lebih dulu sebelum menugaskan ke kelas belajar.</Alert>
-          </div>
-        ) : compatibleClasses.length === 0 ? (
-          <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-xs text-muted">
-            Belum ada kelas belajar tingkat {gradeLabel(mission.grade_level)}. Buat kelas dengan tingkat yang sama di
-            menu Kelas &amp; siswa.
-          </p>
-        ) : (
-          <form action={setMissionClassesAction} className="mt-3 space-y-3">
-            <input type="hidden" name="missionId" value={mission.id} />
-            <div className="grid gap-2 sm:grid-cols-2">
-              {compatibleClasses.map((item) => (
-                <label
-                  key={item.id}
-                  className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-bold"
-                >
-                  <input
-                    type="checkbox"
-                    name="classId"
-                    value={item.id}
-                    defaultChecked={assignedClassIds.includes(item.id)}
-                    className="size-4"
-                  />
-                  {item.name}
-                  <span className="ml-auto text-[11px] font-semibold text-muted">{gradeLabel(item.gradeLevel)}</span>
-                </label>
-              ))}
-            </div>
-            <Button type="submit" size="sm">
-              Simpan penugasan
-            </Button>
-          </form>
-        )}
+        <h2 className="text-base font-black">Tampil otomatis sesuai kurikulum kelas</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Misi terbit ini masuk ke kelas dengan tingkat {gradeLabel(mission.grade_level)} dan mata pelajaran yang
+          dipilih di bawah. Tidak perlu memasangkan misi ke kelas satu per satu.
+          {mission.audience === "public"
+            ? " Siswa tanpa kelas aktif juga dapat melihatnya sebagai belajar mandiri."
+            : " Misi ini hanya ditampilkan kepada siswa yang mengikuti kelas dengan kurikulum yang cocok."}
+        </p>
       </section>
 
       <details className="card group p-4 sm:p-5">

@@ -7,6 +7,8 @@ export type MissionRow = {
   learning_objectives: string[];
   order_index: number;
   is_published: boolean;
+  /** public = belajar mandiri setingkat; class_only = kelas dengan tingkat dan mapel yang cocok. */
+  audience: "public" | "class_only";
   grade_level: number | null;
   subject_slug: string | null;
   topic_slug: string | null;
@@ -19,6 +21,7 @@ export type MissionRow = {
 export type QuestionRow = {
   id: string;
   mission_id: string;
+  image_id: string | null;
   question_type: "multiple_choice" | "numeric";
   prompt: string;
   options: string[] | null;
@@ -56,10 +59,12 @@ export type MissionCard = {
   description: string;
   orderIndex: number;
   gradeLevel: number | null;
+  subjectSlug: string | null;
   subjectLabel: string | null;
   topicLabel: string | null;
   questionCount: number;
   isPublished: boolean;
+  audience: "public" | "class_only";
   unlocked: boolean;
   completed: boolean;
   bestScore: number | null;
@@ -72,6 +77,8 @@ export type PlayQuestion = {
   id: string;
   type: "multiple_choice" | "numeric";
   prompt: string;
+  /** URL gambar soal (route terproteksi) atau null. */
+  imageUrl: string | null;
   options: string[];
   hint: string;
   difficulty: "mudah" | "sedang" | "tantangan";
@@ -88,7 +95,15 @@ export type AnswerFeedback = {
 
 export type AttemptResult = {
   attempt: AttemptRow;
-  mission: { id: string; slug: string; title: string; orderIndex: number; objectives: string[] };
+  mission: {
+    id: string;
+    slug: string;
+    title: string;
+    orderIndex: number;
+    gradeLevel: number | null;
+    subjectLabel: string | null;
+    objectives: string[];
+  };
   student: { displayName: string; avatarKey: string };
   answers: {
     questionId: string;

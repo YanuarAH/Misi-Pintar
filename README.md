@@ -2,10 +2,12 @@
 
 > Belajar seru, selesaikan misi!
 
-Platform pembelajaran interaktif Matematika untuk siswa kelas 5–6 SD. Siswa belajar lewat tiga misi
-bertema (berbelanja di pasar, menakar bahan di dapur, merancang taman), menjawab soal satu per satu,
-dan langsung mendapat umpan balik beserta pembahasan. Guru punya dasbor untuk mengelola misi, soal,
-kelas, serta melihat laporan hasil belajar.
+Platform pembelajaran interaktif untuk siswa kelas 5–6 SD dengan empat mata pelajaran demo:
+Matematika, IPAS, Bahasa Indonesia, dan Bahasa Inggris. Siswa belajar lewat enam misi bertema
+(berbelanja di pasar, menakar bahan di dapur, merancang taman, menyelidiki makhluk hidup, membaca
+teks, dan kosakata bahasa Inggris), menjawab soal satu per satu, dan langsung mendapat umpan balik
+beserta pembahasan. Guru punya dasbor untuk mengelola misi, soal, kelas, serta melihat laporan hasil
+belajar.
 
 Aplikasi ini **berfungsi penuh** — bukan mockup: autentikasi, database relasional dengan Row Level
 Security, penilaian di server, XP dan lencana, penguncian misi, riwayat percobaan, dan CRUD konten
@@ -38,9 +40,10 @@ lewat UI. Tidak ada model AI, tidak ada layanan berbayar, tidak ada iklan atau p
 | `/guru/login` | Autentikasi guru (email + password) |
 | `/guru/dashboard` | Jumlah siswa, penyelesaian misi, rata-rata akurasi, siswa aktif 7 hari, aktivitas terbaru, soal dengan tingkat kesalahan tertinggi |
 | `/guru/misi` | Daftar misi + **filter tingkat kelas/mata pelajaran**, penanda "belum dikategorikan", status validasi, buat misi baru |
-| `/guru/misi/[id]` | Editor misi: metadata kurikulum, **penugasan ke kelas belajar**, terbitkan/tarik, arsipkan, CRUD soal (tambah, ubah, hapus dengan konfirmasi) |
-| `/guru/kelas` | Daftar kelas + tingkatnya, kode kelas, buat kelas (tingkat wajib), atur tingkat kelas lama |
-| `/guru/kelas/[id]` | Roster siswa (kode siswa, akurasi, aktivitas), atur ulang PIN, keluarkan siswa, hasil per misi (sesuai tingkat), soal tersulit |
+| `/guru/misi/[id]` | Editor misi: metadata kurikulum, misi otomatis mengikuti tingkat + mata pelajaran kelas, terbitkan/tarik, arsipkan, CRUD soal |
+| `/guru/kelas` | Daftar kelas + tingkat dan mata pelajaran, kode kelas, buat kelas, **arsipkan / pulihkan / hapus permanen kelas kosong** |
+| `/guru/kelas/[id]` | Roster siswa (kode siswa, akurasi, aktivitas), atur ulang PIN, keluarkan siswa, hasil misi untuk mapel kelas, soal tersulit |
+| `/media/[id]` | Gambar soal; hanya untuk pengguna yang berhak (RLS), `no-store`, tanpa akses path langsung |
 | `/guru/siswa/[id]` | Laporan per siswa: riwayat percobaan (bisa dibuka detailnya), materi untuk diulang, lencana |
 
 Aturan main yang diterapkan:
@@ -58,19 +61,32 @@ Aturan main yang diterapkan:
   misi baru; jawabannya tetap tercatat untuk peta kemampuan.
 - **Bank soal varian**: satu misi punya 10 slot; setiap slot boleh punya beberapa varian dan satu
   varian dipilih acak saat percobaan dimulai, sehingga soal tidak selalu sama persis.
+- **Gambar soal** (opsional): guru mengunggah JPEG/PNG/WebP (maks 3 MB) di form tambah/edit soal,
+  melihat pratinjau, bisa mengganti atau menghapusnya tanpa menghapus soal. Tipe file ditentukan dari
+  magic bytes di server, bukan dari `accept` browser. Siswa melihat gambar responsif (`object-contain`,
+  maksimal 26rem) dengan fallback teks bila gagal dimuat.
+- **Pemisahan kelas per mata pelajaran**: satu kelas belajar memiliki satu `subject_slug` dan satu
+  tingkat. Misi terbit untuk kombinasi tingkat + mata pelajaran muncul otomatis untuk anggotanya;
+  guru tidak perlu memasangkan misi satu per satu. Dashboard siswa memisahkan daftar menurut mapel.
+  Siswa tanpa kelas aktif tetap dapat belajar mandiri dari misi `public` sesuai tingkatnya.
+- **Arsip kelas**: kelas beranggota tidak dihapus permanen, melainkan diarsipkan
+  (`classes.archived_at`). Anggota dan riwayat tetap tersimpan; kelas arsip tidak menerima anggota
+  baru dan tidak lagi memberi akses konten melalui kelas. Hapus permanen hanya untuk kelas tanpa anggota.
 - **Peta kemampuan** menghitung akurasi per topik (penjumlahan, pecahan, keliling, dst.) dari jawaban
   yang benar-benar dikirim siswa, dengan label "Sudah kuat / Berkembang / Perlu latihan tambahan".
 
 ### Belajar mandiri dan keanggotaan kelas
 
-- **Tingkat kelas siswa disimpan di profil** (`profiles.grade_level`). Ini sumber utama konten
-  mandiri: siswa yang belum pernah bergabung ke kelas mana pun tetap melihat misi terbit sesuai
-  tingkatnya. Tanpa tingkat, peta misi kosong dan halaman Kelas saya meminta memilih tingkat.
+- **Tingkat kelas siswa disimpan di profil** (`profiles.grade_level`). Siswa tanpa kelas aktif tetap
+  melihat misi `public` sesuai tingkatnya. Setelah bergabung ke kelas, daftar misi dibatasi pada
+  mata pelajaran kelas yang diikuti. Tanpa tingkat, peta misi kosong.
 - **Kelas belajar opsional.** Siswa bergabung dengan kode undangan di `/kelas-saya`, tanpa membuat
   akun baru. Satu siswa boleh ikut beberapa kelas (`class_members`, unik per `(class_id, student_id)`),
   dan bisa keluar kapan saja tanpa kehilangan akun, progres, atau riwayat.
-- **Tugas kelas bersifat privat.** Bila misi ditugaskan ke kelas tertentu (`mission_classes`), hanya
-  anggota kelas itu yang melihatnya; siswa bertingkat sama dari kelas lain tidak.
+- **Misi kelas dipilih otomatis.** Kelas memiliki satu mata pelajaran; semua misi terbit dengan
+  tingkat dan mata pelajaran yang sama muncul bagi anggota kelas tersebut. Siswa di kelas dengan
+  mata pelajaran lain tidak melihatnya. `public` juga tersedia bagi siswa tanpa kelas aktif;
+  `class_only` hanya untuk siswa di kelas yang cocok.
 - **Kompatibilitas tingkat ditegakkan**: bergabung ditolak bila tingkat siswa ≠ tingkat kelas. Siswa
   yang belum memilih tingkat mengikuti tingkat kelas yang ia masuki. Guru tidak bisa mengubah tingkat
   kelas bila masih ada anggota bertingkat lain (trigger database).
@@ -87,7 +103,7 @@ Dua konsep ini sengaja dipisahkan:
 | Konsep | Contoh | Disimpan di |
 | --- | --- | --- |
 | **Tingkat kelas** | Kelas 1–6 SD | `missions.grade_level`, `classes.grade_level`, `profiles.grade_level` (smallint 1–6) |
-| **Kelas belajar** | "5A - Matematika", "5B - Matematika" | tabel `classes` (dikelola guru per kelompok) |
+| **Kelas belajar** | "5A - Matematika", "5B - Matematika" | tabel `classes` (`grade_level` + `subject_slug`) |
 
 Setiap misi wajib punya **tingkat kelas + mata pelajaran + topik** sebelum boleh terbit
 (`subjects` dan `mission_topics` adalah tabel referensi). Soal tidak menyimpan tingkat kelas —
@@ -95,17 +111,17 @@ kategorinya diturunkan dari misi, sehingga tidak ada duplikasi data.
 
 Aturan akses siswa:
 
-- Misi hanya tampil bila **terbit**, **sudah punya tingkat kelas**, dan tingkat itu sama dengan
-  tingkat profil siswa **atau** tingkat salah satu kelas belajarnya.
-- **Penugasan opsional** (`mission_classes`, many-to-many, tanpa menyalin misi): bila misi ditugaskan
-  ke kelas tertentu, hanya kelas itu yang melihatnya; bila belum ditugaskan, semua kelas pada tingkat
-  yang sama melihatnya. Tingkat misi dan kelas penerima wajib sama — dijaga trigger database,
-  bukan hanya UI.
+- Misi hanya tampil bila **terbit**, **sudah punya tingkat + mata pelajaran**, dan cocok dengan
+  kelas aktif yang diikuti siswa. Dashboard mengelompokkan misi menurut mata pelajaran.
+- Siswa tanpa kelas aktif tetap dapat melihat misi `public` sesuai tingkat profil. Misi `class_only`
+  hanya tersedia untuk anggota kelas yang cocok. Tidak ada lagi penugasan misi per kelas sebagai
+  langkah wajib.
 - Misi **draf** tidak pernah tampil ke siswa.
 - Urutan pembukaan misi dihitung **per (tingkat kelas, mata pelajaran)**, jadi misi Kelas 2 tidak
   mengunci misi Kelas 5.
-- Misi lama tanpa tingkat kelas **tidak** diberi kategori otomatis; guru mengategorikannya lewat
-  `/guru/misi` (filter "Belum dikategorikan") atau `npm run db:audit-kurikulum` untuk melihat daftarnya.
+- Misi lama tanpa tingkat atau mata pelajaran **tidak** diberi kategori otomatis; guru melengkapinya lewat
+  `/guru/misi` (filter "Belum dikategorikan"). Kelas lama tanpa mata pelajaran juga perlu dilengkapi
+  lewat detail kelas. `npm run db:audit-kurikulum` menampilkan keduanya.
 - Riwayat percobaan tetap terbaca walau misi kemudian dipindah tingkat (soal misi yang pernah
   dikerjakan siswa tetap boleh dibaca oleh siswa itu).
 
@@ -148,7 +164,7 @@ Tidak ada dependensi AI/LLM, tidak ada layanan berbayar pada alur utama.
 ```
 db/
   migrations/        001_schema, 002_access_helpers, 003_policies, 004_auth_functions, 005_grants
-  seed/content.ts    3 misi x 10 soal (sumber kebenaran konten)
+  seed/content.ts    Konten misi kelas 4-6 (sumber kebenaran konten)
 scripts/             migrate.ts, seed.ts, dev-db.ts, lib/*
 src/
   app/
@@ -182,7 +198,7 @@ npm run db:start                  # khusus Windows + PostgreSQL lokal di folder 
 #    createdb misi_pintar
 #    create role misi_app login password '...' nosuperuser nobypassrls;
 
-# 2) Migrasi + data awal (3 misi, 30 soal, akun demo)
+# 2) Migrasi + data awal (30 misi, 300 soal inti, akun demo)
 npm run db:migrate
 npm run db:seed
 
@@ -198,10 +214,10 @@ Perintah lain:
 | `npm run db:seed` | Mengisi data yang belum ada; `-- --force` menimpa teks misi/soal dengan versi seed |
 | `npm run db:reset` | Reset total + seed ulang |
 | `npm run db:cleanup` | Hapus percobaan terbengkalai (belum selesai, tanpa jawaban, > 7 hari); `-- --days=30` untuk ambang lain |
-| `npm run db:audit-kurikulum` | Daftar misi & kelas yang belum punya tingkat kelas (perlu kategorisasi manual) |
+| `npm run db:audit-kurikulum` | Daftar misi tanpa tingkat/mapel serta kelas tanpa tingkat/mapel (perlu dilengkapi manual) |
 | `npm run typecheck` | TypeScript strict tanpa emisi |
 | `npm run test:http` | Smoke test HTTP (routing, guard anonim, akses per peran); arahkan `APP_URL` ke hasil deployment |
-| `npm test` | 153 test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
+| `npm test` | Test Vitest (butuh database uji, lihat `docs/TESTING.md`) |
 | `npm run build` / `npm start` | Build & jalankan versi produksi |
 
 ### Variabel environment
@@ -270,7 +286,7 @@ Ditinjau pada tahap validasi, tanpa mengubah fitur:
 
 | Area | Temuan yang diverifikasi | Risiko sisa | Rekomendasi |
 | --- | --- | --- | --- |
-| Ubah tingkat sendiri | Tugas privat terikat pada keanggotaan + tingkat **kelas**, bukan tingkat profil; ubah tingkat tidak membuka tugas kelas lain (test 36–37); RLS menolak ubah tingkat siswa lain (test 39) | Siswa bisa menyatakan tingkat lain untuk membuka **misi publik** tingkat itu | Kunci tingkat bila sudah punya kelas, atau tampilkan perubahannya di roster guru |
+| Ubah tingkat sendiri | Akses anggota kelas terikat pada tingkat + mata pelajaran kelas, bukan tingkat profil; RLS menolak ubah tingkat siswa lain | Siswa tanpa kelas aktif dapat menyatakan tingkat lain untuk membuka misi belajar mandiri `public` | Kunci tingkat bila sudah punya kelas, atau tampilkan perubahannya di roster guru |
 | Kode undangan | 6 karakter × 32 simbol ≈ 30 bit; rotasi oleh guru membatalkan kode lama (test 40–41); 8 kegagalan/10 menit per siswa disimpan di database + rate limit sesi | Belum ada batas per IP/edge, belum kedaluwarsa, `class_join_attempts` belum dibersihkan | Rate limit di edge → masa berlaku kode → job pembersihan |
 
 ### Yang perlu diketahui sebelum produksi
@@ -292,16 +308,19 @@ Ditinjau pada tahap validasi, tanpa mengubah fitur:
 - `profiles` — `id, role, display_name, avatar_key, grade_level, email, password_hash, pin_hash,
   access_code, timestamps`; CHECK memastikan guru punya email+password dan siswa punya PIN+kode akses
   (guru tidak boleh punya `grade_level`).
-- `classes` — `id, teacher_id, name, join_code (unik, 6 karakter), grade_level (1-6, NULL = belum diatur), created_at`.
+- `missions.audience` — `public` (juga tersedia untuk siswa belajar mandiri tanpa kelas aktif) atau
+  `class_only` (khusus anggota kelas dengan tingkat + mata pelajaran yang cocok).
+- `classes` — `id, teacher_id, name, join_code (unik, 6 karakter), grade_level, subject_slug,
+  archived_at, archived_by, created_at`. Kelas arsip tetap ada beserta anggotanya; trigger menolak
+  anggota baru. Hapus permanen hanya untuk kelas tanpa anggota.
 - `class_members` — unik `(class_id, student_id)`.
 - `missions` — `slug` unik, cerita, `learning_objectives text[]`, `order_index`, `is_published`, `author_id`,
   `archived_at`, `grade_level` (1-6, NULL = belum dikategorikan), `subject_slug` → `subjects`,
   `topic_slug` + `subject_slug` → `mission_topics` (FK komposit memastikan topik milik mapel yang sama).
 - `subjects` — referensi mata pelajaran (`slug`, `label`, `order_index`); `mission_topics` — referensi
   topik per mapel. Keduanya hanya diubah lewat migrasi, dibaca semua pengguna aplikasi.
-- `mission_classes` — penugasan misi → kelas belajar (`mission_id`, `class_id`, `assigned_by`, `assigned_at`;
-  PK gabungan). Trigger `mission_classes_grade_guard` menolak penugasan bila tingkat misi ≠ tingkat kelas
-  atau salah satunya belum diatur.
+- `mission_classes` — relasi penugasan lama dipertahankan untuk kompatibilitas data; akses siswa kini
+  dihitung otomatis dari `classes.subject_slug` dan tingkat kelas.
 - `questions` — tipe (`multiple_choice`/`numeric`), `options jsonb`, `correct_answer`, `explanation`, `hint`,
   `difficulty`, `answer_unit`, `topic`, `slot_index`, `variant_index`, `order_index`, `archived_at`.
   Indeks unik parsial `(mission_id, slot_index, variant_index)` mencegah varian kembar.
@@ -316,9 +335,19 @@ Tambahan di luar daftar minimal: `answer_unit` (label satuan input), `question_i
 materi tidak mengubah percobaan yang sedang berjalan), `archived_at` (soft delete), `author_id`
 (kepemilikan misi), `topic`/`slot_index`/`variant_index` (peta kemampuan + bank varian),
 `mode`/`source_attempt_id` (latihan tanpa XP), `grade_level`/`subject_slug`/`topic_slug` +
-`mission_classes` (pemisahan konten per tingkat), `profiles.grade_level` (tingkat siswa untuk belajar
+`classes.subject_slug` (pemisahan misi per mata pelajaran), `profiles.grade_level` (tingkat siswa untuk belajar
 mandiri), `class_join_attempts` (pembatas penebakan kode undangan; hanya lewat fungsi definer),
-`schema_migrations`.
+`classes.archived_at`, `media_assets` + `questions.image_id` (gambar soal), `schema_migrations`.
+
+Gambar soal:
+
+- `media_assets` — `id, storage_key (unik, pola uuid.ext), mime_type (jpeg/png/webp), byte_size (≤3 MB),
+  sha256, uploaded_by, created_at`; RLS: guru pengunggah atau siapa pun yang boleh membaca misi
+  pemakai gambar itu; hapus ditolak bila masih ada soal yang memakai file.
+- `questions.image_id` → `media_assets` (`on delete set null`). Satu soal satu gambar; file fisik
+  disimpan di disk (`storage/media`, di luar `public/`) dan **hanya** disajikan lewat `/media/[id]`.
+  Path/metadata disimpan di database, bukan Base64.
+- File lama dihapus saat gambar diganti/dilepas **hanya bila tidak dipakai soal lain**.
 
 Penghapusan: kelas → anggota ikut terhapus; misi → soal ikut terhapus tetapi percobaan lama
 dipertahankan (FK `attempts.mission_id` cascade, `attempt_answers.question_id` restrict). Karena itu
@@ -331,14 +360,17 @@ UI guru memakai **soft delete** (`archived_at`) untuk soal dan misi.
 Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenario wajib):
 
 - `npm run typecheck` — bersih (0 error).
-- `npm test` (vitest) — **153 test lulus, 0 gagal** (11 file): normalisasi angka, skor/XP, lencana, verifikasi
-  aritmetika 30 soal, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
+- `npm test -- --maxWorkers=1` — jalankan seluruh tes Vitest (14 file): normalisasi angka, skor/XP, lencana, verifikasi
+  aritmetika soal hitungan, keseimbangan posisi jawaban, validasi soal & misi, RLS anonim/siswa/guru,
   siklus misi lengkap, aturan XP anti-farming, syarat penyelesaian, pembatalan percobaan,
   resume setelah semua soal dijawab, bank soal varian, latihan tanpa XP, peta kemampuan per topik,
-  validasi terbit per slot, pemisahan konten per tingkat kelas (filter guru, isolasi soal, penugasan
-  kelas, akses siswa, riwayat lama, RLS), pendaftaran tanpa kelas, konten mandiri per tingkat, gabung
+  validasi terbit per slot, pemisahan konten per tingkat + mata pelajaran (filter guru, isolasi soal,
+  akses siswa per mapel kelas, pemisahan dashboard, riwayat lama, RLS), pendaftaran tanpa kelas,
+  konten mandiri per tingkat, gabung
   kelas via kode (ganda, lintas tingkat, pembatasan percobaan), isolasi data antar anggota, kewenangan
-  guru, perubahan tingkat siswa vs tugas privat, rotasi kode undangan, dan konfigurasi seed.
+  guru, perubahan tingkat siswa vs tugas privat, rotasi kode undangan, arsip/hapus kelas (termasuk
+  trigger & RLS), unggah/ganti/lepas gambar soal, penolakan tipe & ukuran, file bersama, dan
+  konfigurasi seed.
 - `npm run test:http` — **20/20 pemeriksaan HTTP lulus** terhadap `next start` lokal (port 3100):
   4 guard anonim (`/belajar`, `/latihan`, `/kelas-saya`, `/guru/dashboard`), 404 halaman tak dikenal,
   akses siswa (`/belajar`, `/progres`, `/profil`, `/kelas-saya`, isi halaman Kelas saya), akses guru
@@ -351,10 +383,16 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenari
   - mencoba gabung "Kelas 5A - Matematika" saat tingkat 4 → ditolak dengan pesan tingkat berbeda;
   - menaikkan tingkat ke 5 → gabung MISI5A → tampil "Kamu bergabung ke Kelas 5A - Matematika
     (guru: Bu Sari)", daftar kelas berisi guru, tingkat, dan tugas "Pasar Pintar";
-  - peta misi menampilkan 3 misi Kelas 5 walau belum punya kelas (sebelum bergabung);
+  - peta misi menampilkan seluruh misi terbit Kelas 5 walau belum punya kelas (saat itu 3 misi);
   - gabung ulang kode yang sama → "Kamu sudah menjadi anggota kelas ini." (tanpa baris ganda);
   - keluar kelas → tetap tingkat 5 SD, daftar kelas kosong, progres dan riwayat tidak berubah;
   - roster guru menampilkan "Kelas 5 SD" di bawah nama siswa;
+  - membuat kelas kosong lalu menghapusnya lewat dialog: konfirmasi menyebut nama kelas, notifikasi
+    "Kelas kosong berhasil dihapus permanen", kartu hilang dari daftar tanpa refresh manual;
+  - mengarsipkan kelas berisi siswa: dialog menjelaskan dampak, kelas pindah ke bagian "Kelas
+    diarsipkan", lalu "Pulihkan" mengembalikannya ke daftar aktif;
+  - guru melihat pratinjau gambar soal di editor; siswa melihat gambar 100×100 pada soal, lebar
+    102px di viewport 375px tanpa overflow, dan `/media/...` mengembalikan 404 untuk pengguna anonim;
   - daftar siswa baru → dapat kode akses → dashboard menampilkan hanya misi 1 terbuka;
   - mengerjakan 10 soal Pasar Pintar → semua benar → skor 100, 120 XP, 3 lencana, pembahasan tampil;
   - `/progres` menampilkan 120 XP dan misi 2 terbuka;
@@ -366,7 +404,6 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenari
   - percobaan yang ditinggalkan tampil sebagai "Sedang dikerjakan" di `/progres` dengan tombol
     "Lanjutkan" dan "Batalkan" (konfirmasi dua langkah);
   - siswa dapat mengganti nama tampilan/avatar di `/profil` dan header langsung berubah;
-  - `npm run test:http` lulus 17/17 pemeriksaan (guard anonim 307, data lintas peran tidak bocor);
   - `/progres` menampilkan peta kemampuan per topik dari jawaban nyata (mis. "Penjumlahan &
     pengurangan 7/8 · 88% · Sudah kuat");
   - menyelesaikan misi dengan 8 jawaban salah menawarkan "Latih 8 soal ini saja" → halaman latihan
@@ -377,10 +414,10 @@ Dijalankan pada mesin ini (lihat `docs/TESTING.md` untuk matriks lengkap skenari
   - guru melihat banner "1 misi belum punya tingkat kelas" (data lama), memfilter daftar misi
     Kelas 5 SD (3 misi) dan Kelas 2 SD (0 misi sebelum dikategorikan);
   - misi lama "Jalanan Ramai" dikategorikan lewat form menjadi Kelas 2 SD · Matematika ·
-    Operasi bilangan bulat; setelah itu muncul di filter Kelas 2 dan hanya kelas tingkat 2 yang
-    bisa ditugaskan (2A - Matematika);
-  - siswa baru "Bayu" yang mendaftar dengan kode kelas 2A hanya melihat 1 misi (Jalanan Ramai),
-    sedangkan Rani (Kelas 5) melihat 3 misi Kelas 5 dan tidak melihat kartu Jalanan Ramai;
+    Operasi bilangan bulat; setelah itu otomatis muncul untuk anggota kelas tingkat 2 dengan mapel
+    Matematika;
+  - siswa baru "Bayu" yang mendaftar dengan kode kelas 2A melihat misi sesuai mata pelajaran
+    kelasnya; siswa tanpa kelas aktif tetap melihat misi `public` sesuai tingkat profil;
   - akses langsung `/misi/jalanan-ramai` oleh Rani menghasilkan halaman "tidak ditemukan";
   - tidak ada overflow horizontal pada lebar 375px di `/`, `/belajar`, `/misi/[slug]`, `/progres`;
   - mengulang misi yang sudah 100% (10/10) hanya menambah 20 XP — dari 100 ke 120, batas maksimal
@@ -400,23 +437,27 @@ Belum dikerjakan:
 - Ilustrasi soal (mis. denah taman) masih mengandalkan teks + emoji; belum ada SVG per soal.
 - Belum ada mode gelap, pengaturan font besar, atau terjemahan.
 - Belum ada ekspor CSV laporan kelas; belum ada cetak laporan.
-- Hanya Matematika, 3 misi, 30 soal inti + 6 varian (2 varian di 2 slot per misi). Menambah varian
-  untuk semua slot adalah pekerjaan konten, bukan perubahan kode.
+- Konten demo: Matematika kelas 5 serta IPAS, Bahasa Indonesia, dan Bahasa Inggris kelas 4-6;
+  tiga misi per tingkat dan mata pelajaran terkait (30 misi, 300 soal inti) ditambah 6 varian.
+- Siswa mendapat petunjuk langkah awal dan penanda saat seluruh misi pada mata pelajarannya telah selesai.
+  Dashboard guru memandu penyiapan kelas dan menampilkan ringkasan kemajuan per mata pelajaran.
 - Peta kemampuan memakai akurasi mentah per topik; belum memperhitungkan tingkat kesulitan soal.
 - Kategori kurikulum (mata pelajaran/topik) masih statis lewat migrasi; belum ada CRUD referensi di UI.
-- **Perubahan tingkat kelas oleh siswa** belum dibatasi atau memerlukan persetujuan guru. Yang sudah
-  diverifikasi: mengubah tingkat sendiri **tidak** membuka tugas privat kelas lain (tugas privat terikat
-  pada keanggotaan + tingkat kelas, bukan tingkat profil), dan siswa tidak bisa mengubah tingkat siswa
-  lain (RLS). Risiko yang tersisa: siswa dapat menyatakan tingkat lebih tinggi/rendah untuk membuka
-  **misi publik** tingkat lain. Rekomendasi: kunci tingkat bila siswa sudah tergabung di kelas, atau
-  tampilkan perubahan tingkat di roster guru.
+- **Perubahan tingkat kelas oleh siswa** belum dibatasi atau memerlukan persetujuan guru. Anggota kelas
+  tetap mengikuti tingkat + mata pelajaran kelas, tetapi siswa tanpa kelas aktif dapat menyatakan tingkat
+  lain untuk membuka misi belajar mandiri `public`. Rekomendasi: kunci tingkat bila siswa sudah tergabung
+  di kelas, atau tampilkan perubahan tingkat di roster guru.
 - **Kode undangan** 6 karakter dari 32 simbol (≈30 bit) dan tidak kedaluwarsa. Yang sudah ada: rotasi
   oleh guru (kode lama langsung tidak berlaku — diuji), pembatasan 8 kegagalan per 10 menit per siswa
   di database, dan rate limit in-memory per sesi. Belum ada: pembatasan per IP/edge, masa berlaku, dan
   pembersihan berkala `class_join_attempts`. Rekomendasi prioritas: rate limit kode di lapisan edge,
   lalu masa berlaku kode, lalu job pembersihan.
-- Misi/kelas yang belum dikategorikan harus dirapikan manual — lihat `npm run db:audit-kurikulum`.
+- Misi tanpa tingkat/mapel dan kelas tanpa tingkat/mapel harus dilengkapi manual — lihat `npm run db:audit-kurikulum`.
   Selama belum dirapikan, misi tersebut tidak tampil ke siswa (pilihan aman).
+- Gambar soal belum di-resize/dioptimalkan server dan tidak memakai CDN; file disimpan di disk
+  instance (perlu volume persisten saat deploy). Belum ada pembersihan otomatis media yatim.
+- Build Turbopack masih menampilkan 3 peringatan "dynamic filesystem access" untuk modul media;
+  build tetap sukses, tetapi tracing output ikut membesar.
 - Belum ada test E2E otomatis (Playwright); verifikasi browser dilakukan manual.
 - Belum ada ESLint.
 

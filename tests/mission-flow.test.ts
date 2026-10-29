@@ -140,7 +140,7 @@ describe("alur misi siswa", () => {
     expect(payload).not.toContain("1500");
     for (const question of result.state.questions) {
       expect(Object.keys(question).sort()).toEqual(
-        ["answerUnit", "difficulty", "hint", "id", "options", "orderIndex", "prompt", "type"].sort(),
+        ["answerUnit", "difficulty", "hint", "id", "imageUrl", "options", "orderIndex", "prompt", "type"].sort(),
       );
       expect(question).not.toHaveProperty("correctAnswer");
       expect(question).not.toHaveProperty("explanation");

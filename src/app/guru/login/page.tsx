@@ -55,7 +55,7 @@ export default async function TeacherLoginPage() {
               Laporan yang berguna
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              Akurasi per misi, aktivitas terbaru, dan soal dengan tingkat kesalahan tertinggi — dipakai sebagai
+              Akurasi per misi, aktivitas terbaru, dan soal dengan tingkat kesalahan tertinggi: dipakai sebagai
               bahan pengajaran, bukan penilaian akhir.
             </p>
           </div>

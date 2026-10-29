@@ -24,23 +24,36 @@ export async function listTeacherClasses(viewer: Viewer, teacherId: string) {
     name: string;
     join_code: string;
     grade_level: number | null;
+    subject_slug: string | null;
+    subject_label: string | null;
     created_at: Date;
+    archived_at: Date | null;
     student_count: string;
     completion_count: string;
     avg_accuracy: number | null;
+    mission_count: string;
   }>(
     viewer,
-    `select c.id, c.name, c.join_code, c.grade_level, c.created_at,
+    `select c.id, c.name, c.join_code, c.grade_level, c.subject_slug, s.label as subject_label,
+            c.created_at, c.archived_at,
             (select count(*) from class_members cm where cm.class_id = c.id) as student_count,
+            (select count(*) from missions m
+              where m.is_published and m.archived_at is null
+                and m.grade_level = c.grade_level and m.subject_slug = c.subject_slug) as mission_count,
             (select count(*) from attempts a
+               join missions m on m.id = a.mission_id
                join class_members cm on cm.student_id = a.student_id
-              where cm.class_id = c.id and a.completed_at is not null) as completion_count,
+               where cm.class_id = c.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = c.grade_level and m.subject_slug = c.subject_slug) as completion_count,
             (select round(avg(a.score))::int from attempts a
+               join missions m on m.id = a.mission_id
                join class_members cm on cm.student_id = a.student_id
-              where cm.class_id = c.id and a.completed_at is not null) as avg_accuracy
+               where cm.class_id = c.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = c.grade_level and m.subject_slug = c.subject_slug) as avg_accuracy
        from classes c
+       left join subjects s on s.slug = c.subject_slug
       where c.teacher_id = $1
-      order by c.created_at asc`,
+      order by c.archived_at nulls first, c.created_at asc`,
     [teacherId],
   );
 
@@ -48,19 +61,29 @@ export async function listTeacherClasses(viewer: Viewer, teacherId: string) {
     ...row,
     studentCount: Number(row.student_count),
     completionCount: Number(row.completion_count),
+    missionCount: Number(row.mission_count),
     avgAccuracy: row.avg_accuracy,
   }));
 }
 
-export async function createClass(viewer: Viewer, teacherId: string, name: string, gradeLevel: number) {
+export async function createClass(
+  viewer: Viewer,
+  teacherId: string,
+  name: string,
+  gradeLevel: number,
+  subjectSlug: string,
+) {
+  const subject = await one<{ slug: string }>(viewer, "select slug from subjects where slug = $1", [subjectSlug]);
+  if (!subject) throw new TeacherError("Mata pelajaran tidak ditemukan.");
+
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const joinCode = randomCode(6);
     try {
       const created = await one<{ id: string; name: string; join_code: string }>(
         viewer,
-        `insert into classes (teacher_id, name, join_code, grade_level)
-         values ($1, $2, $3, $4) returning id, name, join_code`,
-        [teacherId, name, joinCode, gradeLevel],
+        `insert into classes (teacher_id, name, join_code, grade_level, subject_slug)
+         values ($1, $2, $3, $4, $5) returning id, name, join_code`,
+        [teacherId, name, joinCode, gradeLevel, subjectSlug],
       );
       if (created) return created;
     } catch (error) {
@@ -110,16 +133,93 @@ export async function setClassGrade(viewer: Viewer, classId: string, gradeLevel:
   }
 }
 
+export async function setClassSubject(viewer: Viewer, classId: string, subjectSlug: string): Promise<void> {
+  const subject = await one<{ slug: string }>(viewer, "select slug from subjects where slug = $1", [subjectSlug]);
+  if (!subject) throw new TeacherError("Mata pelajaran tidak ditemukan.");
+
+  const updated = await one<{ id: string }>(
+    viewer,
+    "update classes set subject_slug = $2 where id = $1 returning id",
+    [classId, subjectSlug],
+  );
+  if (!updated) throw new TeacherError("Kelas tidak ditemukan.");
+}
+
+/** Mengarsipkan kelas: anggota & riwayat tetap ada, tetapi kelas tidak lagi membuka akses misi. */
+export async function archiveClass(viewer: Viewer, classId: string): Promise<void> {
+  const updated = await one<{ id: string }>(
+    viewer,
+    `update classes set archived_at = now(), archived_by = $2
+      where id = $1 and archived_at is null
+      returning id`,
+    [classId, viewer?.userId ?? null],
+  );
+  if (!updated) throw new TeacherError("Kelas tidak ditemukan atau sudah diarsipkan.");
+}
+
+/** Memulihkan kelas arsip; anggota lama tetap menjadi anggota. */
+export async function restoreClass(viewer: Viewer, classId: string): Promise<void> {
+  const updated = await one<{ id: string }>(
+    viewer,
+    `update classes set archived_at = null, archived_by = null
+      where id = $1 and archived_at is not null
+      returning id`,
+    [classId],
+  );
+  if (!updated) throw new TeacherError("Kelas tidak ditemukan atau belum diarsipkan.");
+}
+
+/**
+ * Menghapus permanen — hanya bila kelas kosong (tanpa anggota) dan tanpa tugas.
+ * Kelas yang punya jejak harus diarsipkan agar data historis tetap utuh.
+ */
+export async function deleteClass(viewer: Viewer, classId: string, teacherId: string): Promise<void> {
+  const deleted = await one<{ id: string }>(
+    viewer,
+    `delete from classes c
+      where c.id = $1 and c.teacher_id = $2
+        and not exists (select 1 from class_members m where m.class_id = c.id)
+      returning c.id`,
+    [classId, teacherId],
+  );
+  if (deleted) return;
+
+  const state = await one<{ members: string; owned: boolean }>(
+    viewer,
+    `select
+        (select count(*)::text from class_members m where m.class_id = c.id) as members,
+        c.teacher_id = $2 as owned
+      from classes c where c.id = $1`,
+    [classId, teacherId],
+  );
+
+  if (!state) throw new TeacherError("Kelas tidak ditemukan.");
+  if (!state.owned) throw new TeacherError("Kelas ini bukan milik Anda.");
+  if (Number(state.members) > 0) {
+    throw new TeacherError(
+      "Kelas masih punya anggota. Keluarkan anggotanya dulu, atau arsipkan kelas agar riwayat tetap tersimpan.",
+    );
+  }
+  throw new TeacherError("Kelas gagal dihapus. Coba muat ulang halaman.");
+}
+
 export async function getClassDetail(viewer: Viewer, classId: string) {
   const classroom = await one<{
     id: string;
     name: string;
     join_code: string;
     grade_level: number | null;
+    subject_slug: string | null;
+    subject_label: string | null;
     created_at: Date;
+    archived_at: Date | null;
   }>(
     viewer,
-    "select id, name, join_code, grade_level, created_at from classes where id = $1",
+    `select c.id, c.name, c.join_code, c.grade_level, c.subject_slug, s.label as subject_label,
+            c.created_at, c.archived_at
+       from classes c
+       left join subjects s on s.slug = c.subject_slug
+      where c.id = $1`,
     [classId],
   );
   if (!classroom) return null;
@@ -141,14 +241,24 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
     `select p.id, p.display_name, p.avatar_key, p.access_code, p.grade_level,
             (select count(*) from class_members x where x.student_id = p.id) as class_count,
             cm.joined_at,
-            (select count(*) from attempts a where a.student_id = p.id and a.completed_at is not null) as attempts,
+            (select count(*) from attempts a
+              join missions m on m.id = a.mission_id
+              where a.student_id = p.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = cl.grade_level and m.subject_slug = cl.subject_slug) as attempts,
             (select count(distinct a.mission_id) from attempts a
-              where a.student_id = p.id and a.completed_at is not null) as completed_missions,
+              join missions m on m.id = a.mission_id
+              where a.student_id = p.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = cl.grade_level and m.subject_slug = cl.subject_slug) as completed_missions,
             (select round(avg(a.score))::int from attempts a
-              where a.student_id = p.id and a.completed_at is not null) as avg_accuracy,
+              join missions m on m.id = a.mission_id
+              where a.student_id = p.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = cl.grade_level and m.subject_slug = cl.subject_slug) as avg_accuracy,
             (select max(a.completed_at) from attempts a
-              where a.student_id = p.id and a.completed_at is not null) as last_active_at
+              join missions m on m.id = a.mission_id
+              where a.student_id = p.id and a.mode = 'mission' and a.completed_at is not null
+                and m.grade_level = cl.grade_level and m.subject_slug = cl.subject_slug) as last_active_at
        from class_members cm
+       join classes cl on cl.id = cm.class_id
        join profiles p on p.id = cm.student_id
       where cm.class_id = $1
       order by p.display_name asc`,
@@ -177,8 +287,10 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
        left join mission_topics t on t.slug = m.topic_slug
        left join attempts a on a.mission_id = m.id
         and a.student_id in (select student_id from class_members where class_id = $1)
+        and a.mode = 'mission'
       where m.archived_at is null and m.is_published
-        and (cl.grade_level is null or m.grade_level = cl.grade_level)
+        and m.grade_level = cl.grade_level
+        and m.subject_slug = cl.subject_slug
       group by m.id, m.grade_level, s.label, t.label
       order by m.grade_level asc nulls last, m.order_index asc`,
     [classId],
@@ -191,7 +303,11 @@ export async function getClassDetail(viewer: Viewer, classId: string) {
        from attempt_answers aa
        join questions q on q.id = aa.question_id
        join attempts a on a.id = aa.attempt_id
-      where a.student_id in (select student_id from class_members where class_id = $1)
+       join missions m on m.id = a.mission_id
+       join classes cl on cl.id = $1
+      where a.mode = 'mission'
+        and a.student_id in (select student_id from class_members where class_id = $1)
+        and m.grade_level = cl.grade_level and m.subject_slug = cl.subject_slug
       group by q.id
       having count(*) >= 2
       order by (count(*) filter (where not aa.is_correct))::numeric / count(*) desc
@@ -264,19 +380,19 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
     viewer,
     `select
        (select count(distinct cm.student_id) from class_members cm
-          join classes c on c.id = cm.class_id where c.teacher_id = $1) as students,
+          join classes c on c.id = cm.class_id where c.teacher_id = $1 and c.archived_at is null) as students,
        (select count(*) from attempts a
           where a.completed_at is not null and a.mode = 'mission'
             and a.student_id in (select cm.student_id from class_members cm
-                                 join classes c on c.id = cm.class_id where c.teacher_id = $1)) as completions,
+                                 join classes c on c.id = cm.class_id where c.teacher_id = $1 and c.archived_at is null)) as completions,
        (select round(avg(a.score))::int from attempts a
           where a.completed_at is not null and a.mode = 'mission'
             and a.student_id in (select cm.student_id from class_members cm
-                                 join classes c on c.id = cm.class_id where c.teacher_id = $1)) as avg_accuracy,
+                                 join classes c on c.id = cm.class_id where c.teacher_id = $1 and c.archived_at is null)) as avg_accuracy,
        (select count(distinct a.student_id) from attempts a
           where a.completed_at > now() - interval '7 days'
             and a.student_id in (select cm.student_id from class_members cm
-                                 join classes c on c.id = cm.class_id where c.teacher_id = $1)) as active_this_week`,
+                                 join classes c on c.id = cm.class_id where c.teacher_id = $1 and c.archived_at is null)) as active_this_week`,
     [teacherId],
   );
 
@@ -295,9 +411,16 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
        from attempts a
        join profiles p on p.id = a.student_id
        join missions m on m.id = a.mission_id
-       join class_members cm on cm.student_id = a.student_id
-       join classes c on c.id = cm.class_id
-      where c.teacher_id = $1 and a.completed_at is not null and a.mode = 'mission'
+       join lateral (
+         select c.name
+           from class_members cm
+           join classes c on c.id = cm.class_id
+          where cm.student_id = a.student_id
+            and c.teacher_id = $1 and c.archived_at is null
+          order by c.name asc
+          limit 1
+       ) c on true
+      where a.completed_at is not null and a.mode = 'mission'
       order by a.completed_at desc
       limit 8`,
     [teacherId],
@@ -313,10 +436,42 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
        join attempts a on a.id = aa.attempt_id
       where a.mode = 'mission'
         and a.student_id in (select cm.student_id from class_members cm
-                             join classes c on c.id = cm.class_id where c.teacher_id = $1)
+                             join classes c on c.id = cm.class_id where c.teacher_id = $1 and c.archived_at is null)
       group by q.id, m.title
       order by (count(*) filter (where not aa.is_correct))::numeric / count(*) desc
       limit 5`,
+    [teacherId],
+  );
+
+  const subjectProgress = await rows<{
+    grade_level: number;
+    subject_slug: string;
+    subject_label: string;
+    enrolled: string;
+    attempted: string;
+    completions: string;
+    avg_accuracy: number | null;
+  }>(
+    viewer,
+    `with teacher_students as (
+       select distinct c.grade_level, c.subject_slug, cm.student_id
+         from class_members cm
+         join classes c on c.id = cm.class_id
+        where c.teacher_id = $1 and c.archived_at is null
+          and c.grade_level is not null and c.subject_slug is not null
+     )
+     select ts.grade_level, ts.subject_slug, s.label as subject_label,
+            count(distinct ts.student_id)::text as enrolled,
+            count(distinct a.student_id)::text as attempted,
+            count(a.id)::text as completions,
+            round(avg(a.score))::int as avg_accuracy
+       from teacher_students ts
+       join missions m on m.grade_level = ts.grade_level and m.subject_slug = ts.subject_slug
+       join subjects s on s.slug = ts.subject_slug
+       left join attempts a on a.student_id = ts.student_id and a.mission_id = m.id
+          and a.mode = 'mission' and a.completed_at is not null
+      group by ts.grade_level, ts.subject_slug, s.label, s.order_index
+      order by ts.grade_level asc, s.order_index asc`,
     [teacherId],
   );
 
@@ -347,6 +502,15 @@ export async function getTeacherDashboard(viewer: Viewer, teacherId: string) {
       answers: Number(row.answers),
       wrong: Number(row.wrong),
       wrongRate: Number(row.answers) ? Math.round((Number(row.wrong) / Number(row.answers)) * 100) : 0,
+    })),
+    subjectProgress: subjectProgress.map((row) => ({
+      gradeLevel: row.grade_level,
+      subjectSlug: row.subject_slug,
+      subjectLabel: row.subject_label,
+      enrolled: Number(row.enrolled),
+      attempted: Number(row.attempted),
+      completions: Number(row.completions),
+      avgAccuracy: row.avg_accuracy,
     })),
     classes,
     missions,
@@ -450,6 +614,8 @@ export async function getStudentReport(viewer: Viewer, studentId: string) {
 
 /* ------------------------------- Konten guru ------------------------------ */
 
+export type MissionStatusFilter = "active" | "draft" | "published" | "archived";
+
 export type MissionAdminItem = MissionRow & {
   questionCount: number;
   validQuestionCount: number;
@@ -457,12 +623,16 @@ export type MissionAdminItem = MissionRow & {
   topicLabel: string | null;
   assignedClasses: { id: string; name: string; gradeLevel: number | null }[];
   publishIssues: string[];
+  attemptCount: number;
+  /** Boleh dihapus permanen: belum pernah dikerjakan. */
+  deletable: boolean;
 };
 
 export type MissionFilter = {
   gradeLevel?: number | null;
   subject?: string | null;
   uncategorized?: boolean;
+  status?: MissionStatusFilter;
 };
 
 /** Metadata misi yang wajib ada sebelum misi boleh terbit. */
@@ -513,24 +683,34 @@ export async function listTeacherMissions(
   teacherId: string,
   filter: MissionFilter = {},
 ): Promise<MissionAdminItem[]> {
+  const status: MissionStatusFilter = filter.status ?? "active";
   const missions = await rows<
-    MissionRow & { question_count: string; subject_label: string | null; topic_label: string | null }
+    MissionRow & {
+      question_count: string;
+      subject_label: string | null;
+      topic_label: string | null;
+      attempt_count: string;
+    }
   >(
     viewer,
     `select m.*,
             (select count(distinct q.slot_index) from questions q
                where q.mission_id = m.id and q.archived_at is null) as question_count,
             s.label as subject_label,
-            t.label as topic_label
+            t.label as topic_label,
+            public.app_mission_attempt_count(m.id) as attempt_count
        from missions m
        left join subjects s on s.slug = m.subject_slug
        left join mission_topics t on t.slug = m.topic_slug
-      where m.archived_at is null and m.author_id = $1
+      where m.author_id = $1
+        and (case when $5 = 'archived' then m.archived_at is not null else m.archived_at is null end)
+        and ($5 <> 'draft' or not m.is_published)
+        and ($5 <> 'published' or m.is_published)
         and ($2::int is null or m.grade_level = $2)
         and ($3::text is null or m.subject_slug = $3)
         and ($4::boolean is not true or m.grade_level is null)
       order by m.grade_level asc nulls last, m.subject_slug asc nulls last, m.order_index asc`,
-    [teacherId, filter.gradeLevel ?? null, filter.subject ?? null, filter.uncategorized ?? false],
+    [teacherId, filter.gradeLevel ?? null, filter.subject ?? null, filter.uncategorized ?? false, status],
   );
 
   const questions = await rows<QuestionRow>(
@@ -552,16 +732,21 @@ export async function listTeacherMissions(
     const issues = [...curriculumIssues(mission), ...missionQuestions.flatMap((question) => questionIssues(question))];
     if (missionQuestions.length === 0) issues.push("Misi belum memiliki soal.");
     issues.push(...slotIssues(missionQuestions));
+    const assignedClasses = assignments
+      .filter((row) => row.mission_id === mission.id)
+      .map((row) => ({ id: row.id, name: row.name, gradeLevel: row.grade_level }));
+    const attemptCount = Number(mission.attempt_count);
+
     return {
       ...mission,
       questionCount: Number(mission.question_count),
       validQuestionCount: missionQuestions.filter((question) => questionIssues(question).length === 0).length,
       subjectLabel: mission.subject_label,
       topicLabel: mission.topic_label,
-      assignedClasses: assignments
-        .filter((row) => row.mission_id === mission.id)
-        .map((row) => ({ id: row.id, name: row.name, gradeLevel: row.grade_level })),
+      assignedClasses,
       publishIssues: [...new Set(issues)],
+      attemptCount,
+      deletable: attemptCount === 0,
     };
   });
 }
@@ -615,7 +800,9 @@ export async function getMissionForEdit(viewer: Viewer, missionId: string, teach
 
   const classes = await rows<{ id: string; name: string; grade_level: number | null }>(
     viewer,
-    "select id, name, grade_level from classes where teacher_id = $1 order by grade_level asc nulls last, name asc",
+    `select id, name, grade_level from classes
+      where teacher_id = $1 and archived_at is null
+      order by grade_level asc nulls last, name asc`,
     [teacherId],
   );
 
@@ -652,6 +839,7 @@ function missionRecord(input: MissionInput) {
     story: input.story,
     learningObjectives: input.learningObjectives.filter((objective) => objective.trim().length > 0),
     orderIndex: input.orderIndex,
+    audience: input.audience,
     gradeLevel: input.gradeLevel,
     subject: input.subject,
     topic: input.topic,
@@ -665,8 +853,8 @@ export async function createMission(viewer: Viewer, teacherId: string, input: Mi
       viewer,
       `insert into missions
          (slug, title, description, story, learning_objectives, order_index, is_published, author_id,
-          grade_level, subject_slug, topic_slug)
-       values ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10)
+          grade_level, subject_slug, topic_slug, audience)
+       values ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11)
        returning *`,
       [
         record.slug,
@@ -679,6 +867,7 @@ export async function createMission(viewer: Viewer, teacherId: string, input: Mi
         record.gradeLevel,
         record.subject,
         record.topic,
+        record.audience,
       ],
     );
     if (!mission) throw new TeacherError("Misi gagal dibuat.");
@@ -698,7 +887,7 @@ export async function updateMission(viewer: Viewer, missionId: string, input: Mi
       const updated = await client.query<MissionRow>(
         `update missions
             set slug = $2, title = $3, description = $4, story = $5, learning_objectives = $6, order_index = $7,
-                grade_level = $8, subject_slug = $9, topic_slug = $10
+                grade_level = $8, subject_slug = $9, topic_slug = $10, audience = $11
           where id = $1 and archived_at is null
           returning *`,
         [
@@ -712,6 +901,7 @@ export async function updateMission(viewer: Viewer, missionId: string, input: Mi
           record.gradeLevel,
           record.subject,
           record.topic,
+          record.audience,
         ],
       );
       const mission = updated.rows[0];
@@ -749,25 +939,43 @@ export async function setMissionClasses(
   if (!viewer || viewer.userId !== teacherId) throw new TeacherError("Sesi tidak cocok.");
 
   return withViewer(viewer, async (client) => {
-    const missionResult = await client.query<{ id: string; grade_level: number | null }>(
-      "select id, grade_level from missions where id = $1 and archived_at is null and author_id = $2 for update",
+    const missionResult = await client.query<{
+      id: string;
+      grade_level: number | null;
+      archived_at: Date | null;
+      audience: "public" | "class_only";
+      is_published: boolean;
+    }>(
+      "select id, grade_level, archived_at, audience, is_published from missions where id = $1 and author_id = $2 for update",
       [missionId, teacherId],
     );
     const mission = missionResult.rows[0];
     if (!mission) throw new TeacherError("Misi tidak ditemukan atau bukan milik Anda.");
+    if (mission.archived_at) {
+      throw new TeacherError("Misi ini sudah diarsipkan. Pulihkan dulu sebelum menugaskan ke kelas.");
+    }
     if (mission.grade_level === null) {
       throw new TeacherError("Pilih tingkat kelas misi sebelum menugaskan ke kelas belajar.");
     }
 
     const unique = [...new Set(classIds.filter((id) => id.trim().length > 0))];
 
+    // Misi khusus kelas yang sudah terbit tidak boleh kehilangan seluruh penugasannya:
+    // tanpa penugasan, misi itu tidak terlihat oleh siapa pun.
+    if (mission.audience === "class_only" && mission.is_published && unique.length === 0) {
+      throw new TeacherError(
+        "Misi ini hanya untuk kelas dan sudah terbit. Sisakan minimal satu kelas, atau ubah menjadi misi belajar mandiri.",
+      );
+    }
+
     if (unique.length > 0) {
       const classResult = await client.query<{ id: string; name: string; grade_level: number | null }>(
-        "select id, name, grade_level from classes where id = any($1::uuid[]) and teacher_id = $2",
+        `select id, name, grade_level from classes
+          where id = any($1::uuid[]) and teacher_id = $2 and archived_at is null`,
         [unique, teacherId],
       );
       if (classResult.rows.length !== unique.length) {
-        throw new TeacherError("Ada kelas yang bukan milik Anda.");
+        throw new TeacherError("Ada kelas yang bukan milik Anda atau sudah diarsipkan.");
       }
       const mismatch = classResult.rows.find((row) => row.grade_level !== mission.grade_level);
       if (mismatch) {
@@ -835,7 +1043,53 @@ export async function archiveMission(viewer: Viewer, missionId: string): Promise
     "update missions set archived_at = now(), is_published = false where id = $1 and archived_at is null returning id",
     [missionId],
   );
-  if (!mission) throw new TeacherError("Misi tidak ditemukan.");
+  if (!mission) throw new TeacherError("Misi tidak ditemukan atau sudah diarsipkan.");
+}
+
+export async function restoreMission(viewer: Viewer, missionId: string): Promise<void> {
+  const mission = await one<{ id: string }>(
+    viewer,
+    "update missions set archived_at = null where id = $1 and archived_at is not null returning id",
+    [missionId],
+  );
+  if (!mission) throw new TeacherError("Misi tidak ditemukan atau belum diarsipkan.");
+}
+
+/**
+ * Hapus permanen hanya untuk misi arsip yang belum pernah dikerjakan. Trigger
+ * `missions_delete_guard` menjadi jaring pengaman
+ * terakhir bila ada jalur lain yang mencoba menghapus.
+ */
+export async function deleteMission(viewer: Viewer, missionId: string): Promise<void> {
+  const mission = await one<{ id: string; title: string }>(
+    viewer,
+    "select id, title from missions where id = $1 and archived_at is not null",
+    [missionId],
+  );
+  if (!mission) throw new TeacherError("Arsipkan misi dulu sebelum menghapus permanen.");
+
+  const attempts = await one<{ total: string }>(
+    viewer,
+    "select public.app_mission_attempt_count($1)::text as total",
+    [missionId],
+  );
+  if (Number(attempts?.total ?? "0") > 0) {
+    throw new TeacherError(
+      `Misi ini punya ${attempts?.total} riwayat pengerjaan siswa. Riwayat belajar tidak boleh hilang, jadi misi hanya bisa diarsipkan.`,
+    );
+  }
+
+  try {
+    const deleted = await one<{ id: string }>(viewer, "delete from missions where id = $1 returning id", [missionId]);
+    if (!deleted) throw new TeacherError("Misi tidak ditemukan.");
+  } catch (error) {
+    if (error instanceof TeacherError) throw error;
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("riwayat pengerjaan") || message.includes("masih ditugaskan")) {
+      throw new TeacherError(message);
+    }
+    throw new TeacherError("Misi gagal dihapus.");
+  }
 }
 
 function questionRecord(input: QuestionFormInput) {
@@ -890,6 +1144,7 @@ export async function createQuestion(viewer: Viewer, missionId: string, rawInput
     ],
   );
   if (!question) throw new TeacherError("Soal gagal disimpan.");
+  await touchMission(viewer, missionId);
   return question;
 }
 
@@ -921,17 +1176,24 @@ export async function updateQuestion(viewer: Viewer, questionId: string, rawInpu
     ],
   );
   if (!question) throw new TeacherError("Soal tidak ditemukan.");
+  await touchMission(viewer, question.mission_id);
   return question;
+}
+
+/** Menandai misi berubah supaya kolom "diperbarui" di daftar misi akurat. */
+async function touchMission(viewer: Viewer, missionId: string): Promise<void> {
+  await one(viewer, "update missions set updated_at = now() where id = $1 returning id", [missionId]);
 }
 
 /** Soft delete: riwayat percobaan lama tetap utuh. */
 export async function archiveQuestion(viewer: Viewer, questionId: string): Promise<void> {
-  const question = await one<{ id: string }>(
+  const question = await one<{ id: string; mission_id: string }>(
     viewer,
-    "update questions set archived_at = now() where id = $1 and archived_at is null returning id",
+    "update questions set archived_at = now() where id = $1 and archived_at is null returning id, mission_id",
     [questionId],
   );
   if (!question) throw new TeacherError("Soal tidak ditemukan.");
+  await touchMission(viewer, question.mission_id);
 }
 
 export async function regenerateJoinCode(viewer: Viewer, classId: string): Promise<string> {

@@ -9,12 +9,15 @@ import {
   removeMemberAction,
   resetPinAction,
   setClassGradeAction,
+  setClassSubjectAction,
 } from "@/app/actions/teacher";
+import { getCurriculumOptions } from "@/server/teacher";
 import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { CopyButton } from "@/components/teacher/CopyButton";
+import { ExportClassReportButton } from "@/components/teacher/ExportClassReportButton";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -26,12 +29,13 @@ export default async function ClassDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; pinReset?: string; kelasDiatur?: string }>;
+  searchParams: Promise<{ error?: string; pinReset?: string; kelasDiatur?: string; mapelDiatur?: string }>;
 }) {
   const session = await requireTeacher();
   const { id } = await params;
   const query = await searchParams;
-  const data = await getClassDetail(viewerOf(session), id);
+  const viewer = viewerOf(session);
+  const [data, options] = await Promise.all([getClassDetail(viewer, id), getCurriculumOptions(viewer)]);
   if (!data) notFound();
 
   const { classroom, students, missionStats, hardestQuestions } = data;
@@ -49,6 +53,7 @@ export default async function ClassDetailPage({
       {query.error ? <Alert tone="error">{query.error}</Alert> : null}
       {query.pinReset ? <Alert tone="success">PIN siswa berhasil diatur ulang. Sesi lama siswa tersebut sudah diakhiri.</Alert> : null}
       {query.kelasDiatur ? <Alert tone="success">Tingkat kelas tersimpan.</Alert> : null}
+      {query.mapelDiatur ? <Alert tone="success">Mata pelajaran kelas tersimpan.</Alert> : null}
 
       <header className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -64,6 +69,9 @@ export default async function ClassDetailPage({
                 )}
               >
                 {gradeLabel(classroom.grade_level)}
+              </span>
+              <span className="chip bg-paper text-[10px]">
+                {classroom.subject_label ?? "Mata pelajaran belum diatur"}
               </span>
               {students.length} siswa · {totalCompletions} penyelesaian misi ·{" "}
               {avgAccuracy === null ? "belum ada akurasi" : `rata-rata akurasi ${avgAccuracy}%`}
@@ -85,16 +93,21 @@ export default async function ClassDetailPage({
             />
           </div>
         </div>
-        {classroom.grade_level === null ? (
+        {classroom.grade_level === null || classroom.subject_slug === null ? (
           <div className="mt-3 rounded-2xl border border-sun/50 bg-sun-soft p-3">
             <p className="flex items-start gap-2 text-xs font-bold text-[#7a4a00]">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              Kelas ini belum punya tingkat kelas, sehingga siswa belum menerima misi apa pun.
+              Lengkapi tingkat dan mata pelajaran agar misi yang sesuai dapat muncul otomatis untuk siswa.
             </p>
-            <form action={setClassGradeAction} className="mt-2 flex flex-wrap items-end gap-2">
+          </div>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap gap-3">
+          {classroom.grade_level === null ? (
+            <form action={setClassGradeAction} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="classId" value={classroom.id} />
               <label className="grid gap-1">
-                <span className="text-[10px] font-black uppercase tracking-wide text-[#7a4a00]">Tingkat kelas</span>
+                <span className="text-[10px] font-black uppercase tracking-wide text-muted">Tingkat kelas</span>
                 <select name="gradeLevel" className="input min-w-36" defaultValue="" required>
                   <option value="" disabled>
                     Pilih tingkat
@@ -110,8 +123,27 @@ export default async function ClassDetailPage({
                 Simpan tingkat
               </Button>
             </form>
-          </div>
-        ) : null}
+          ) : null}
+          <form action={setClassSubjectAction} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="classId" value={classroom.id} />
+            <label className="grid gap-1">
+              <span className="text-[10px] font-black uppercase tracking-wide text-muted">Mata pelajaran kelas</span>
+              <select name="subject" className="input min-w-48" defaultValue={classroom.subject_slug ?? ""} required>
+                <option value="" disabled>
+                  Pilih mata pelajaran
+                </option>
+                {options.subjects.map((subject) => (
+                  <option key={subject.slug} value={subject.slug}>
+                    {subject.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="submit" size="sm">
+              Simpan mata pelajaran
+            </Button>
+          </form>
+        </div>
 
         <p className="mt-3 rounded-2xl bg-sky-soft px-4 py-2.5 text-xs leading-relaxed text-[#1d4b73]">
           Siswa mendaftar di <span className="font-mono">/daftar</span> memakai kode kelas di atas. Setelah
@@ -121,12 +153,22 @@ export default async function ClassDetailPage({
       </header>
 
       <section className="card overflow-hidden">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
-          <h2 className="flex items-center gap-2 text-base font-black">
-            <Users className="size-4 text-primary" aria-hidden="true" />
-            Daftar siswa
-          </h2>
-          <span className="chip bg-paper">{students.length} siswa</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3.5">
+          <div className="flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-base font-black">
+              <Users className="size-4 text-primary" aria-hidden="true" />
+              Daftar siswa
+            </h2>
+            <span className="chip bg-paper">{students.length} siswa</span>
+          </div>
+          {students.length > 0 ? (
+            <ExportClassReportButton
+              className={classroom.name}
+              gradeLevel={classroom.grade_level}
+              subjectLabel={classroom.subject_label}
+              students={students}
+            />
+          ) : null}
         </div>
 
         {students.length === 0 ? (

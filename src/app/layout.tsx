@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Misi Pintar — Belajar Seru, Selesaikan Misi!",
+    default: "Misi Pintar: Belajar Seru, Selesaikan Misi!",
     template: "%s · Misi Pintar",
   },
   description:

@@ -1,19 +1,47 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Filter, Plus, Users } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, Eye, Filter, Plus } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
-import { getCurriculumOptions, listTeacherMissions } from "@/server/teacher";
+import { getCurriculumOptions, listTeacherMissions, type MissionStatusFilter } from "@/server/teacher";
 import { MissionForm } from "@/components/teacher/MissionForm";
+import { MissionActions } from "@/components/teacher/MissionActions";
+import { Alert } from "@/components/ui/Alert";
 import { ButtonLink } from "@/components/ui/Button";
 import { GRADE_LEVELS, gradeLabel } from "@/lib/curriculum";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Misi & soal", robots: { index: false } };
 
+const STATUS_TABS: { value: MissionStatusFilter; label: string }[] = [
+  { value: "active", label: "Semua aktif" },
+  { value: "draft", label: "Draf" },
+  { value: "published", label: "Terbit" },
+  { value: "archived", label: "Arsip" },
+];
+
+const MESSAGES: Record<string, string> = {
+  arsip: "Misi diarsipkan. Riwayat pengerjaan siswa tetap tersimpan.",
+  pulih: "Misi dipulihkan. Misi kembali tampil sebagai draf dan bisa diterbitkan lagi.",
+  hapus: "Misi kosong berhasil dihapus permanen.",
+};
+
+const dateFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" });
+
+function statusFrom(value: string | undefined): MissionStatusFilter {
+  return STATUS_TABS.some((tab) => tab.value === value) ? (value as MissionStatusFilter) : "active";
+}
+
 export default async function TeacherMissionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ grade?: string; subject?: string; uncategorized?: string }>;
+  searchParams: Promise<{
+    grade?: string;
+    subject?: string;
+    uncategorized?: string;
+    status?: string;
+    pesan?: string;
+    error?: string;
+  }>;
 }) {
   const session = await requireTeacher();
   const viewer = viewerOf(session);
@@ -23,15 +51,28 @@ export default async function TeacherMissionsPage({
   const gradeLevel = parsedGrade !== null && Number.isInteger(parsedGrade) ? parsedGrade : null;
   const subject = params.subject || null;
   const uncategorized = params.uncategorized === "1";
+  const status = statusFrom(params.status);
 
-  const [missions, options, allMissions] = await Promise.all([
-    listTeacherMissions(viewer, session.id, { gradeLevel, subject, uncategorized }),
+  const [missions, options, allMissions, archivedMissions] = await Promise.all([
+    listTeacherMissions(viewer, session.id, { gradeLevel, subject, uncategorized, status }),
     getCurriculumOptions(viewer),
     listTeacherMissions(viewer, session.id),
+    listTeacherMissions(viewer, session.id, { status: "archived" }),
   ]);
 
   const uncategorizedCount = allMissions.filter((mission) => mission.grade_level === null).length;
-  const filterActive = gradeLevel !== null || Boolean(subject) || uncategorized;
+  const filterActive = gradeLevel !== null || Boolean(subject) || uncategorized || status !== "active";
+  const isArchive = status === "archived";
+
+  const tabHref = (value: MissionStatusFilter) => {
+    const query = new URLSearchParams();
+    if (value !== "active") query.set("status", value);
+    if (gradeLevel !== null) query.set("grade", String(gradeLevel));
+    if (subject) query.set("subject", subject);
+    if (uncategorized) query.set("uncategorized", "1");
+    const search = query.toString();
+    return search ? `/guru/misi?${search}` : "/guru/misi";
+  };
 
   return (
     <div className="space-y-6">
@@ -44,7 +85,10 @@ export default async function TeacherMissionsPage({
         </div>
       </header>
 
-      {uncategorizedCount > 0 ? (
+      {params.pesan && MESSAGES[params.pesan] ? <Alert tone="success">{MESSAGES[params.pesan]}</Alert> : null}
+      {params.error ? <Alert tone="error">{params.error}</Alert> : null}
+
+      {uncategorizedCount > 0 && !isArchive ? (
         <div className="rounded-2xl border border-sun/50 bg-sun-soft px-4 py-3">
           <p className="flex items-start gap-2 text-sm font-bold text-[#7a4a00]">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -62,7 +106,28 @@ export default async function TeacherMissionsPage({
         </div>
       ) : null}
 
+      <nav className="flex flex-wrap gap-2" aria-label="Status misi">
+        {STATUS_TABS.map((tab) => (
+          <Link
+            key={tab.value}
+            href={tabHref(tab.value)}
+            aria-current={status === tab.value ? "page" : undefined}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-bold",
+              status === tab.value
+                ? "border-primary bg-primary text-white"
+                : "border-line bg-surface text-muted hover:border-primary hover:text-primary",
+            )}
+          >
+            {tab.value === "archived" ? <Archive className="size-3.5" aria-hidden="true" /> : null}
+            {tab.label}
+            {tab.value === "archived" ? ` (${archivedMissions.length})` : null}
+          </Link>
+        ))}
+      </nav>
+
       <form method="get" className="card flex flex-wrap items-end gap-3 p-4" aria-label="Filter daftar misi">
+        <input type="hidden" name="status" value={status} />
         <label className="grid gap-1">
           <span className="text-[11px] font-black uppercase tracking-wide text-muted">Tingkat kelas</span>
           <select name="grade" defaultValue={gradeLevel ?? ""} className="input min-w-40">
@@ -106,34 +171,45 @@ export default async function TeacherMissionsPage({
         ) : null}
       </form>
 
-      <details className="card group p-4 sm:p-5">
-        <summary className="flex cursor-pointer list-none items-center justify-between">
-          <span className="flex items-center gap-2 text-base font-black">
-            <Plus className="size-4 text-primary" aria-hidden="true" />
-            Buat misi baru
-          </span>
-          <span className="text-xs font-bold text-primary group-open:hidden">Buka formulir</span>
-          <span className="hidden text-xs font-bold text-muted group-open:inline">Tutup</span>
-        </summary>
-        <div className="mt-4 border-t border-line pt-4">
-          <MissionForm options={options} />
+      {isArchive ? (
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-muted">
+          Misi arsip tidak tampil di daftar belajar siswa. Semua riwayat
+          pengerjaan tetap ada. Pulihkan misi bila ingin memakainya lagi.
         </div>
-      </details>
+      ) : (
+        <details className="card group p-4 sm:p-5">
+          <summary className="flex cursor-pointer list-none items-center justify-between">
+            <span className="flex items-center gap-2 text-base font-black">
+              <Plus className="size-4 text-primary" aria-hidden="true" />
+              Buat misi baru
+            </span>
+            <span className="text-xs font-bold text-primary group-open:hidden">Buka formulir</span>
+            <span className="hidden text-xs font-bold text-muted group-open:inline">Tutup</span>
+          </summary>
+          <div className="mt-4 border-t border-line pt-4">
+            <MissionForm options={options} />
+          </div>
+        </details>
+      )}
 
       <section className="card overflow-hidden">
         <div className="border-b border-line px-4 py-3.5">
-          <h2 className="text-base font-black">
-            Daftar misi ({missions.length}
-            {filterActive ? ` dari ${allMissions.length}` : ""})
+          <h2 className="flex items-center gap-2 text-base font-black">
+            {isArchive ? "Misi diarsipkan" : "Daftar misi"} ({missions.length}
+            {filterActive && !isArchive ? ` dari ${allMissions.length}` : ""})
           </h2>
         </div>
         {missions.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="font-bold">Tidak ada misi pada filter ini.</p>
+            <p className="font-bold">
+              {isArchive ? "Belum ada misi yang diarsipkan." : "Tidak ada misi pada filter ini."}
+            </p>
             <p className="mt-1 text-sm text-muted">
-              {filterActive
-                ? "Ubah filter atau buat misi baru untuk tingkat kelas ini."
-                : "Gunakan formulir di atas atau jalankan npm run db:seed untuk memuat tiga misi contoh."}
+              {isArchive
+                ? "Misi yang kamu arsipkan akan muncul di sini dan bisa dipulihkan kapan saja."
+                : filterActive
+                  ? "Ubah filter atau buat misi baru untuk tingkat kelas ini."
+                  : "Gunakan formulir di atas atau jalankan npm run db:seed untuk memuat misi contoh."}
             </p>
             {filterActive ? (
               <div className="mt-3">
@@ -154,7 +230,7 @@ export default async function TeacherMissionsPage({
                   <th scope="col" className="text-center">
                     Soal
                   </th>
-                  <th scope="col">Validasi</th>
+                  <th scope="col">Diperbarui</th>
                   <th scope="col" className="text-right">
                     Aksi
                   </th>
@@ -168,14 +244,9 @@ export default async function TeacherMissionsPage({
                         {mission.title}
                       </Link>
                       <p className="font-mono text-[11px] text-muted">/{mission.slug}</p>
-                      {mission.assignedClasses.length > 0 ? (
-                        <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-muted">
-                          <Users className="size-3" aria-hidden="true" />
-                          {mission.assignedClasses.map((item) => item.name).join(", ")}
-                        </p>
-                      ) : (
-                        <p className="mt-0.5 text-[11px] text-muted">Belum ditugaskan ke kelas tertentu</p>
-                      )}
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        Otomatis untuk kelas dengan kurikulum yang cocok
+                      </p>
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-1">
@@ -198,33 +269,68 @@ export default async function TeacherMissionsPage({
                       </div>
                     </td>
                     <td>
-                      <span
-                        className={cn(
-                          "chip",
-                          mission.is_published ? "border-leaf/30 bg-leaf-soft text-[#1c5b36]" : "bg-paper",
-                        )}
-                      >
-                        {mission.is_published ? "Terbit" : "Draf"}
-                      </span>
-                    </td>
-                    <td className="text-center">{mission.questionCount}</td>
-                    <td>
-                      {mission.publishIssues.length === 0 ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1c5b36]">
-                          <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                          Siap terbit
+                      {mission.archived_at ? (
+                        <span className="chip border-line-strong bg-paper">
+                          <Archive className="size-3" aria-hidden="true" />
+                          Arsip
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-coral">
-                          <AlertTriangle className="size-3.5" aria-hidden="true" />
-                          {mission.publishIssues.length} masalah
+                        <span
+                          className={cn(
+                            "chip",
+                            mission.is_published ? "border-leaf/30 bg-leaf-soft text-[#1c5b36]" : "bg-paper",
+                          )}
+                        >
+                          {mission.is_published ? "Terbit" : "Draf"}
                         </span>
                       )}
+                      <p className="mt-1 text-[11px] font-bold text-muted">
+                        {mission.audience === "class_only" ? "Misi kelas" : "Belajar mandiri"}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {mission.attemptCount} dikerjakan
+                        {mission.publishIssues.length > 0 && !mission.archived_at
+                          ? ` · ${mission.publishIssues.length} masalah`
+                          : ""}
+                      </p>
                     </td>
-                    <td className="text-right">
-                      <Link href={`/guru/misi/${mission.id}`} className="text-sm font-bold text-primary hover:underline">
-                        Kelola
-                      </Link>
+                    <td className="text-center">
+                      <span className="font-bold">{mission.questionCount}</span>
+                      <p className="text-[11px] text-muted">{mission.validQuestionCount} valid</p>
+                    </td>
+                    <td className="whitespace-nowrap text-xs text-muted">
+                      {dateFormat.format(new Date(mission.updated_at))}
+                    </td>
+                    <td>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {mission.archived_at ? (
+                            <span className="text-[11px] font-bold text-muted">Pulihkan untuk mengelola</span>
+                          ) : (
+                            <Link
+                              href={`/guru/misi/${mission.id}`}
+                              className="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline"
+                            >
+                              <Eye className="size-3.5" aria-hidden="true" />
+                              Kelola
+                            </Link>
+                          )}
+                          {mission.publishIssues.length === 0 && !mission.archived_at ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1c5b36]">
+                              <CheckCircle2 className="size-3" aria-hidden="true" />
+                              Siap terbit
+                            </span>
+                          ) : null}
+                        </div>
+                        <MissionActions
+                          missionId={mission.id}
+                          title={mission.title}
+                          archived={mission.archived_at !== null}
+                          isPublished={mission.is_published}
+                          attemptCount={mission.attemptCount}
+                          questionCount={mission.questionCount}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -236,7 +342,7 @@ export default async function TeacherMissionsPage({
 
       <p className="text-xs text-muted">
         Misi hanya dapat diterbitkan bila punya tingkat kelas, mata pelajaran, topik, serta minimal satu soal valid
-        di setiap slot.
+        di setiap slot. Misi yang punya riwayat pengerjaan hanya bisa diarsipkan, tidak dihapus permanen.
       </p>
     </div>
   );

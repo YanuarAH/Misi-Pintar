@@ -10,7 +10,7 @@ export function Logo({ href = "/", className, compact = false }: { href?: string
       </span>
       <span className="text-lg leading-none">
         Misi<span className="text-primary">Pintar</span>
-        {!compact ? <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-muted">Belajar seru</span> : null}
+        {!compact ? <span className="block text-xs font-bold tracking-wider text-muted">Belajar seru</span> : null}
       </span>
     </Link>
   );

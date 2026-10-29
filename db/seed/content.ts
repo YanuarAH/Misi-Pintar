@@ -1,5 +1,6 @@
 /**
- * Konten pembelajaran MVP: 3 misi Matematika, 30 soal.
+ * Konten pembelajaran demo: 3 misi Matematika dan 3 misi untuk tiap tingkat 4-6
+ * pada IPAS, Bahasa Indonesia, dan Bahasa Inggris.
  *
  * Setiap soal punya `verification.expression` (aritmetika yang ditulis terpisah
  * dari jawaban) yang diuji di tests/content.test.ts dengan aritmetika rasional
@@ -7,6 +8,7 @@
  */
 
 import type { TopicKey } from "../../src/lib/topics";
+import { additionalMissions } from "./curriculum-content";
 
 export type SeedQuestionType = "multiple_choice" | "numeric";
 
@@ -29,6 +31,8 @@ export type SeedMission = {
   story: string;
   learningObjectives: string[];
   orderIndex: number;
+  /** public = belajar mandiri setingkat; class_only = anggota kelas dengan kurikulum yang cocok. */
+  audience: "public" | "class_only";
   /** Tingkat kelas SD yang menjadi sasaran konten ini. */
   gradeLevel: number;
   /** Slug dari tabel referensi `subjects`. */
@@ -46,7 +50,7 @@ export type SeedVariant = SeedQuestion & {
   topic: TopicKey;
 };
 
-export const seedMissions: SeedMission[] = [
+const originalMissions: SeedMission[] = [
   {
     slug: "pasar-pintar",
     title: "Pasar Pintar",
@@ -61,6 +65,7 @@ export const seedMissions: SeedMission[] = [
       "Menghitung harga setelah diskon persen sederhana",
     ],
     orderIndex: 1,
+    audience: "public",
     gradeLevel: 5,
     subject: "matematika",
     topic: "uang-belanja",
@@ -213,6 +218,7 @@ export const seedMissions: SeedMission[] = [
       "Menghubungkan pecahan dengan takaran resep sehari-hari",
     ],
     orderIndex: 2,
+    audience: "public",
     gradeLevel: 5,
     subject: "matematika",
     topic: "pecahan",
@@ -363,6 +369,7 @@ export const seedMissions: SeedMission[] = [
       "Memilih satuan panjang, luas, dan volume yang tepat",
     ],
     orderIndex: 3,
+    audience: "public",
     gradeLevel: 5,
     subject: "matematika",
     topic: "geometri-dasar",
@@ -477,7 +484,451 @@ export const seedMissions: SeedMission[] = [
       },
     ],
   },
+  {
+    slug: "detektif-makhluk-hidup",
+    title: "Detektif Makhluk Hidup",
+    description:
+      "Jadi detektif alam bersama Bima: amati tumbuhan, hewan, dan perubahan wujud benda di sekitar sekolah.",
+    story:
+      "Kebun sekolah punya masalah: beberapa tanaman layu, ulat banyak memakan daun, dan es di kantin cepat mencair. Bima, detektif cilik kelas 5, diminta menyelidiki. Setiap jawaban benar membuka satu petunjuk, dan petunjuk itu menjelaskan cara makhluk hidup bertahan serta bagaimana benda berubah wujud.",
+    learningObjectives: [
+      "Menjelaskan proses fotosintesis dan kebutuhan tumbuhan",
+      "Mengurutkan rantai makanan serta memperkirakan perubahan populasi",
+      "Membedakan ciri makhluk hidup dengan benda tak hidup",
+      "Mengenali perubahan wujud zat dan penyebabnya",
+    ],
+    orderIndex: 1,
+    audience: "class_only",
+    gradeLevel: 5,
+    subject: "ipa",
+    topic: "makhluk-hidup",
+    questionTopics: [
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "makhluk-hidup",
+      "wujud-zat",
+      "wujud-zat",
+      "wujud-zat",
+    ],
+    questions: [
+      {
+        type: "multiple_choice",
+        prompt:
+          "Tumbuhan membuat makanan sendiri melalui fotosintesis. Apa dua hasil utama fotosintesis yang dimanfaatkan makhluk lain?",
+        options: [
+          "Karbon dioksida dan air",
+          "Oksigen dan glukosa",
+          "Nitrogen dan protein",
+          "Garam mineral dan uap air",
+        ],
+        answer: "Oksigen dan glukosa",
+        difficulty: "mudah",
+        hint: "Tumbuhan menghasilkan gas yang kita hirup dan zat gula sebagai cadangan makanan.",
+        explanation:
+          "Fotosintesis memakai air dan karbon dioksida dengan bantuan cahaya matahari. Hasilnya oksigen yang dilepas ke udara dan glukosa sebagai makanan tumbuhan.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Bagian tumbuhan yang paling banyak menyerap air dan garam mineral dari dalam tanah adalah ...",
+        options: ["Daun", "Bunga", "Akar", "Buah"],
+        answer: "Akar",
+        difficulty: "mudah",
+        hint: "Bagian ini tertanam di tanah dan bercabang halus.",
+        explanation:
+          "Akar memiliki rambut-rambut akar yang memperluas permukaan penyerapan. Air lalu diangkut ke daun melalui pembuluh xilem.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Hewan yang makanan utamanya tumbuhan disebut ...",
+        options: ["Herbivora", "Karnivora", "Omnivora", "Insektivora"],
+        answer: "Herbivora",
+        difficulty: "mudah",
+        hint: "Kata 'herba' berkaitan dengan tumbuhan.",
+        explanation:
+          "Herbivora seperti sapi dan ulat memakan tumbuhan. Karnivora pemakan daging, omnivora pemakan keduanya, dan insektivora pemakan serangga.",
+      },
+      {
+        type: "multiple_choice",
+        prompt:
+          "Di sawah terdapat rantai makanan: padi -> tikus -> ular. Jika banyak ular ditangkap, apa yang paling mungkin terjadi?",
+        options: [
+          "Populasi padi bertambah karena tikus berkurang",
+          "Populasi ular bertambah karena makanan melimpah",
+          "Semua populasi tetap karena rantai makanan berhenti",
+          "Populasi tikus bertambah karena tidak ada pemangsa",
+        ],
+        answer: "Populasi tikus bertambah karena tidak ada pemangsa",
+        difficulty: "sedang",
+        hint: "Ular berperan sebagai pemangsa tikus.",
+        explanation:
+          "Tanpa ular, tikus kehilangan pemangsa alami sehingga jumlahnya naik. Akibat lanjutannya, padi bisa banyak dimakan tikus.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Ulat berubah menjadi kepompong, lalu menjadi kupu-kupu. Proses ini disebut ...",
+        options: [
+          "Metamorfosis tidak sempurna",
+          "Perkembangbiakan vegetatif",
+          "Metamorfosis sempurna",
+          "Penyerbukan silang",
+        ],
+        answer: "Metamorfosis sempurna",
+        difficulty: "sedang",
+        hint: "Bentuk hewan muda berbeda jauh dari bentuk dewasanya dan ada tahap kepompong.",
+        explanation:
+          "Metamorfosis sempurna punya empat tahap: telur, larva (ulat), pupa (kepompong), dan imago (kupu-kupu). Belalang hanya melalui tiga tahap.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Manakah yang merupakan ciri makhluk hidup tetapi tidak dimiliki benda mati?",
+        options: [
+          "Tumbuh dan berkembang",
+          "Memiliki massa",
+          "Menempati ruang",
+          "Berubah suhu saat dipanaskan",
+        ],
+        answer: "Tumbuh dan berkembang",
+        difficulty: "mudah",
+        hint: "Batu juga punya massa dan ruang, tetapi tidak bertambah besar dengan sendirinya.",
+        explanation:
+          "Tumbuh, bernapas, dan berkembang biak adalah ciri makhluk hidup. Massa, ruang, dan perubahan suhu juga berlaku pada benda mati.",
+      },
+      {
+        type: "numeric",
+        prompt:
+          "Pada rantai makanan: rumput -> belalang -> katak -> ular, produsen berada di tingkat 1. Di tingkat berapa ular berada?",
+        answer: "4",
+        unitLabel: "tingkat",
+        difficulty: "sedang",
+        hint: "Hitung berurutan: rumput tingkat 1, belalang tingkat 2, dan seterusnya.",
+        explanation:
+          "Rumput tingkat 1, belalang tingkat 2, katak tingkat 3, dan ular tingkat 4. Semakin tinggi tingkatnya, energi yang tersedia semakin sedikit.",
+        verification: { expression: "1 + 3" },
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Air di dalam cetakan berubah menjadi es setelah dimasukkan ke freezer. Perubahan wujud ini terjadi karena ...",
+        options: [
+          "Air dipanaskan hingga menguap",
+          "Air didinginkan hingga membeku",
+          "Air menyerap panas dari udara",
+          "Air bereaksi dengan logam cetakan",
+        ],
+        answer: "Air didinginkan hingga membeku",
+        difficulty: "mudah",
+        hint: "Freezer mengeluarkan panas dari air.",
+        explanation:
+          "Membeku adalah perubahan cair menjadi padat karena suhu turun. Kebalikannya, mencair terjadi saat es menerima panas.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Titik-titik air di luar gelas es terbentuk karena uap air di udara berubah menjadi cair. Perubahan wujud ini disebut ...",
+        options: ["Menyublim", "Membeku", "Mencair", "Mengembun"],
+        answer: "Mengembun",
+        difficulty: "sedang",
+        hint: "Uap air (gas) berubah menjadi titik air (cair).",
+        explanation:
+          "Mengembun adalah perubahan gas menjadi cair, seperti titik air di gelas dingin. Menyublim adalah padat menjadi gas, misalnya kamper yang mengecil.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kaktus dapat hidup di daerah panas dan kering karena ...",
+        options: [
+          "Daunnya berbentuk duri untuk mengurangi penguapan",
+          "Akarnya pendek agar tidak menyerap air",
+          "Batangnya berongga besar berisi udara",
+          "Daunnya lebar untuk menampung hujan",
+        ],
+        answer: "Daunnya berbentuk duri untuk mengurangi penguapan",
+        difficulty: "tantangan",
+        hint: "Semakin kecil permukaan daun, semakin sedikit air yang hilang.",
+        explanation:
+          "Daun berbentuk duri memperkecil penguapan, sedangkan batang tebal menyimpan air. Akar kaktus justru panjang dan menyebar untuk menangkap air hujan.",
+      },
+    ],
+  },
+  {
+    slug: "my-daily-words",
+    title: "My Daily Words",
+    description:
+      "Latihan kosakata bahasa Inggris sehari-hari: benda di sekolah, sapaan, warna, angka, dan kalimat sederhana.",
+    story:
+      "Kelas 5 kedatangan guru tamu dari Inggris. Ia menempelkan label bahasa Inggris di benda-benda kelas, lalu menantang murid menyebutkan kata yang tepat. Setiap kata yang benar membuat label baru terpasang, sampai seluruh kelas menjadi ruang belajar dua bahasa.",
+    learningObjectives: [
+      "Menyebutkan kosakata bahasa Inggris untuk benda di sekitar",
+      "Menggunakan sapaan dan ungkapan sopan sederhana",
+      "Mengenali angka dan warna dalam bahasa Inggris",
+      "Menyusun kalimat sederhana dengan to be dan kata kerja dasar",
+    ],
+    orderIndex: 1,
+    audience: "class_only",
+    gradeLevel: 5,
+    subject: "bahasa-inggris",
+    topic: "kosa-kata-inggris",
+    questionTopics: [
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+      "kosa-kata-inggris",
+    ],
+    questions: [
+      {
+        type: "multiple_choice",
+        prompt: "Apa bahasa Inggris dari kata 'buku'?",
+        options: ["Pencil", "Bag", "Book", "Table"],
+        answer: "Book",
+        difficulty: "mudah",
+        hint: "Benda yang kamu baca setiap hari di kelas.",
+        explanation: "'Book' berarti buku. 'Pencil' pensil, 'bag' tas, dan 'table' meja.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Ucapan 'Selamat pagi' dalam bahasa Inggris adalah ...",
+        options: ["Good night", "Good morning", "Good afternoon", "Good bye"],
+        answer: "Good morning",
+        difficulty: "mudah",
+        hint: "Dipakai saat bertemu guru pada pagi hari.",
+        explanation:
+          "'Good morning' dipakai pagi hari, 'good afternoon' siang, 'good night' sebelum tidur, dan 'good bye' saat berpisah.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kata 'merah' dalam bahasa Inggris adalah ...",
+        options: ["Blue", "Green", "Red", "Yellow"],
+        answer: "Red",
+        difficulty: "mudah",
+        hint: "Warna bendera Indonesia salah satunya warna ini.",
+        explanation: "'Red' merah, 'blue' biru, 'green' hijau, dan 'yellow' kuning.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kalimat 'I ___ a student' yang benar adalah ...",
+        options: ["am", "is", "are", "be"],
+        answer: "am",
+        difficulty: "sedang",
+        hint: "Kata 'I' selalu berpasangan dengan 'am'.",
+        explanation:
+          "To be untuk 'I' adalah 'am', untuk 'he/she/it' adalah 'is', dan untuk 'you/we/they' adalah 'are'.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Apa bahasa Inggris dari 'sepatu'?",
+        options: ["Socks", "Shirt", "Hat", "Shoes"],
+        answer: "Shoes",
+        difficulty: "mudah",
+        hint: "Dipakai di kaki saat berangkat sekolah.",
+        explanation: "'Shoes' sepatu, 'socks' kaus kaki, 'shirt' kemeja, dan 'hat' topi.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Pertanyaan 'How many books do you have?' menanyakan tentang ...",
+        options: ["Warna buku", "Harga buku", "Jumlah buku", "Pemilik buku"],
+        answer: "Jumlah buku",
+        difficulty: "sedang",
+        hint: "'How many' dipakai untuk menanyakan banyaknya sesuatu.",
+        explanation:
+          "'How many' menanyakan jumlah benda yang bisa dihitung, misalnya 'How many books?'. Untuk warna dipakai 'what colour'.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Angka setelah 'eleven' dalam bahasa Inggris adalah ...",
+        options: ["Twelve", "Twenty", "Ten", "Thirteen"],
+        answer: "Twelve",
+        difficulty: "mudah",
+        hint: "Sebelas, lalu dua belas.",
+        explanation:
+          "Urutannya ten, eleven, twelve, thirteen. 'Twenty' adalah dua puluh.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kalimat 'She ___ to school every day' yang benar adalah ...",
+        options: ["go", "goes", "going", "gone"],
+        answer: "goes",
+        difficulty: "sedang",
+        hint: "Subjek 'she' memakai bentuk kata kerja berakhiran -s.",
+        explanation:
+          "Untuk he, she, dan it, kata kerja simple present ditambah -s atau -es: 'she goes'. Untuk I dan they dipakai 'go'.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Manakah kata bahasa Inggris yang termasuk buah?",
+        options: ["Carrot", "Potato", "Onion", "Apple"],
+        answer: "Apple",
+        difficulty: "mudah",
+        hint: "Biasanya berwarna merah atau hijau dan manis.",
+        explanation:
+          "'Apple' berarti apel dan termasuk buah. Carrot (wortel), potato (kentang), dan onion (bawang) adalah sayuran.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Ungkapan 'Terima kasih' dalam bahasa Inggris adalah ...",
+        options: ["Thank you", "I am sorry", "Excuse me", "See you"],
+        answer: "Thank you",
+        difficulty: "mudah",
+        hint: "Diucapkan setelah menerima bantuan atau pemberian.",
+        explanation:
+          "'Thank you' berarti terima kasih. 'I am sorry' minta maaf, 'excuse me' permisi, dan 'see you' sampai jumpa.",
+      },
+    ],
+  },
+  {
+    slug: "petualangan-membaca",
+    title: "Petualangan Membaca",
+    description:
+      "Latihan memahami bacaan pendek, menemukan makna kata, memakai tanda baca, dan mengenali kata baku.",
+    story:
+      "Di perpustakaan sekolah ada buku harian tua yang halamannya saling bertukar. Untuk menyusunnya kembali, Sinta harus membaca setiap potongan cerita, menebak makna kata, dan memperbaiki tanda bacanya. Bantu Sinta membaca dengan teliti.",
+    learningObjectives: [
+      "Menemukan informasi tersurat dan tersirat dalam teks pendek",
+      "Menentukan makna kata, sinonim, dan antonim dalam konteks",
+      "Menggunakan tanda baca dan kata baku dengan tepat",
+      "Mengenali jenis paragraf dan letak kalimat utama",
+    ],
+    orderIndex: 1,
+    audience: "class_only",
+    gradeLevel: 5,
+    subject: "bahasa-indonesia",
+    topic: "membaca-teks",
+    questionTopics: [
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+      "membaca-teks",
+    ],
+    questions: [
+      {
+        type: "multiple_choice",
+        prompt:
+          "Bacalah: 'Hujan turun deras sejak pagi. Rani tetap berangkat sekolah dengan jas hujan.' Mengapa Rani tetap berangkat?",
+        options: [
+          "Karena ia lupa membawa payung",
+          "Karena sekolah diliburkan",
+          "Karena ia ingin tetap belajar meski hujan",
+          "Karena hujan berhenti sebelum siang",
+        ],
+        answer: "Karena ia ingin tetap belajar meski hujan",
+        difficulty: "mudah",
+        hint: "Perhatikan sikap Rani terhadap sekolah, bukan cuacanya.",
+        explanation:
+          "Teks menyebut Rani tetap berangkat dengan jas hujan. Sikap itu menunjukkan ia tidak mau melewatkan sekolah karena hujan.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kata 'deras' pada kalimat 'Hujan turun deras sejak pagi' bermakna ...",
+        options: ["Sangat pelan", "Sangat lebat", "Sangat dingin", "Sangat singkat"],
+        answer: "Sangat lebat",
+        difficulty: "mudah",
+        hint: "Bayangkan air yang turun banyak dan cepat.",
+        explanation:
+          "'Deras' menggambarkan air yang turun banyak dan cepat, jadi maknanya sangat lebat, bukan pelan atau singkat.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Kalimat yang menggunakan tanda baca dengan benar adalah ...",
+        options: [
+          "Ibu membeli apel jeruk, dan mangga.",
+          "Ibu membeli apel, jeruk dan, mangga.",
+          "Ibu membeli apel, jeruk, dan mangga.",
+          "Ibu membeli apel jeruk dan, mangga.",
+        ],
+        answer: "Ibu membeli apel, jeruk, dan mangga.",
+        difficulty: "sedang",
+        hint: "Tanda koma memisahkan setiap unsur dalam perincian.",
+        explanation:
+          "Dalam perincian, koma diletakkan di antara unsur dan sebelum kata 'dan' pada unsur terakhir: apel, jeruk, dan mangga.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Sinonim dari kata 'pandai' adalah ...",
+        options: ["Cerdas", "Malas", "Ramah", "Berani"],
+        answer: "Cerdas",
+        difficulty: "mudah",
+        hint: "Sinonim berarti kata yang maknanya hampir sama.",
+        explanation:
+          "'Pandai' dan 'cerdas' sama-sama berarti cepat memahami pelajaran. 'Malas', 'ramah', dan 'berani' maknanya berbeda.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Antonim dari kata 'tinggi' adalah ...",
+        options: ["Panjang", "Besar", "Luas", "Rendah"],
+        answer: "Rendah",
+        difficulty: "mudah",
+        hint: "Antonim berarti lawan kata.",
+        explanation:
+          "Lawan kata 'tinggi' adalah 'rendah'. 'Panjang' lawannya pendek, 'besar' lawannya kecil.",
+      },
+      {
+        type: "multiple_choice",
+        prompt:
+          "Bacalah: 'Ani rajin membaca. Ia selalu membawa buku ke mana pun pergi.' Sifat Ani berdasarkan teks adalah ...",
+        options: ["Pemalas", "Pemarah", "Rajin", "Penakut"],
+        answer: "Rajin",
+        difficulty: "mudah",
+        hint: "Teks menyebut kebiasaan Ani secara langsung.",
+        explanation:
+          "Teks menyatakan Ani rajin membaca dan selalu membawa buku. Bukti itu menunjukkan sifat rajin.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Penulisan kata baku yang benar adalah ...",
+        options: ["aktivitas", "aktifitas", "aktipitas", "aktifitet"],
+        answer: "aktivitas",
+        difficulty: "sedang",
+        hint: "Kata baku mengikuti kaidah bahasa Indonesia, bukan ucapan sehari-hari.",
+        explanation:
+          "Bentuk baku menurut kamus adalah 'aktivitas'. Bentuk 'aktifitas' sering muncul dalam percakapan tetapi tidak baku.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Paragraf yang berisi ajakan kepada pembaca disebut paragraf ...",
+        options: ["Narasi", "Persuasi", "Deskripsi", "Eksposisi"],
+        answer: "Persuasi",
+        difficulty: "tantangan",
+        hint: "Kata kuncinya 'ajakan' atau 'membujuk'.",
+        explanation:
+          "Paragraf persuasi bertujuan membujuk pembaca melakukan sesuatu. Narasi menceritakan, deskripsi menggambarkan, dan eksposisi memaparkan informasi.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Lawan kata dari 'menang' adalah ...",
+        options: ["Seri", "Berlomba", "Berhasil", "Kalah"],
+        answer: "Kalah",
+        difficulty: "mudah",
+        hint: "Kebalikan hasil pertandingan.",
+        explanation:
+          "Lawan kata 'menang' adalah 'kalah'. 'Seri' berarti hasil imbang, bukan lawan kata.",
+      },
+      {
+        type: "multiple_choice",
+        prompt: "Dalam satu paragraf, kalimat utama umumnya terletak di ...",
+        options: ["Awal paragraf", "Tengah paragraf", "Akhir paragraf", "Judul teks"],
+        answer: "Awal paragraf",
+        difficulty: "sedang",
+        hint: "Kalimat ini memuat gagasan pokok yang dijelaskan kalimat lain.",
+        explanation:
+          "Kalimat utama paling sering berada di awal paragraf (deduktif), walau bisa juga di akhir. Kalimat lain berfungsi menjelaskan gagasan pokok tersebut.",
+      },
+    ],
+  },
 ];
+
+export const seedMissions: SeedMission[] = [...originalMissions, ...additionalMissions];
 
 /**
  * Bank soal varian. Setiap entri mengisi slot yang sama dengan soal utama,
@@ -492,7 +943,7 @@ export const seedVariants: Record<string, SeedVariant[]> = {
       type: "multiple_choice",
       prompt:
         "Rani membayar belanjaan Rp18.400 dengan selembar uang Rp25.000. Berapa uang kembalian yang ia terima?",
-      options: ["Rp6.600", "Rp6.400", "Rp7.600", "Rp7.400"],
+      options: ["Rp6.400", "Rp7.600", "Rp6.600", "Rp7.400"],
       answer: "Rp6.600",
       difficulty: "mudah",
       hint: "Kembalian = uang dibayar - harga belanja.",
@@ -522,7 +973,7 @@ export const seedVariants: Record<string, SeedVariant[]> = {
       type: "multiple_choice",
       prompt:
         "Chef Nara mencampur 1/4 gelas air dan 1/3 gelas sirup. Berapa gelas isi campuran itu?",
-      options: ["7/12 gelas", "2/7 gelas", "5/12 gelas", "1/12 gelas"],
+      options: ["2/7 gelas", "7/12 gelas", "5/12 gelas", "1/12 gelas"],
       answer: "7/12 gelas",
       difficulty: "sedang",
       hint: "Penyebut 4 dan 3 bisa disamakan menjadi 12.",

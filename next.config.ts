@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
+  experimental: {
+    // Unggah gambar soal lewat server action; batas bawaan 1 MB terlalu kecil.
+    serverActions: { bodySizeLimit: "5mb" },
+  },
   poweredByHeader: false,
   async headers() {
     const isProduction = process.env.NODE_ENV === "production";
@@ -13,7 +17,8 @@ const nextConfig: NextConfig = {
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "img-src 'self' data:",
+      // blob: diperlukan untuk pratinjau lokal gambar soal (URL.createObjectURL).
+      "img-src 'self' data: blob:",
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",

@@ -1,6 +1,6 @@
-import { ArrowRight, Check, Lock, Play } from "lucide-react";
+import { Check, Lock, Play } from "lucide-react";
 import { startMissionAction } from "@/app/actions/student";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import type { MissionCard } from "@/server/types";
 import { cn } from "@/lib/cn";
 import { curriculumLabel } from "@/lib/curriculum";
@@ -96,6 +96,14 @@ export function MissionMap({ cards, emptyHint }: { cards: MissionCard[]; emptyHi
                       topicLabel: card.topicLabel,
                     })}
                   </span>
+                  <span
+                    className={cn(
+                      "chip text-[10px]",
+                      card.audience === "class_only" ? "border-line-strong bg-paper" : "border-leaf/30 bg-leaf-soft",
+                    )}
+                  >
+                    {card.audience === "class_only" ? "Tugas kelas" : "Belajar mandiri"}
+                  </span>
                 </p>
                 <p className="mt-1.5 text-xs font-bold text-muted">
                   {card.questionCount} soal
@@ -106,17 +114,22 @@ export function MissionMap({ cards, emptyHint }: { cards: MissionCard[]; emptyHi
 
               <div className="shrink-0">
                 {card.unlocked ? (
-                  <form action={startMissionAction} className="w-full sm:w-auto">
-                    <input type="hidden" name="slug" value={card.slug} />
-                    <Button
-                      type="submit"
+                  card.openAttemptId ? (
+                    <form action={startMissionAction} className="w-full sm:w-auto">
+                      <input type="hidden" name="slug" value={card.slug} />
+                      <Button type="submit" className="w-full sm:w-auto">
+                        Lanjutkan
+                      </Button>
+                    </form>
+                  ) : (
+                    <ButtonLink
+                      href={`/misi/${card.slug}`}
                       variant={card.completed ? "secondary" : "primary"}
                       className="w-full sm:w-auto"
                     >
-                      {card.completed ? "Ulangi misi" : card.openAttemptId ? "Lanjutkan" : "Mulai misi"}
-                      <ArrowRight className="size-4" aria-hidden="true" />
-                    </Button>
-                  </form>
+                      {card.completed ? "Ulangi misi" : "Mulai misi"}
+                    </ButtonLink>
+                  )
                 ) : (
                   <p className="max-w-[12rem] text-xs font-semibold text-muted">
                     Selesaikan misi sebelumnya untuk membuka ini.

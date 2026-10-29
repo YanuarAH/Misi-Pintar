@@ -73,7 +73,10 @@ export function StudentHeader({
             <Avatar avatarKey={avatarKey} size="sm" />
           </Link>
           <form action={logoutAction}>
-            <button type="submit" className="rounded-full px-2 py-1.5 text-xs font-bold text-muted hover:text-ink">
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center rounded-xl px-3 py-2 text-xs font-bold text-muted hover:bg-white hover:text-ink focus-visible:ring-2"
+            >
               Keluar
             </button>
           </form>

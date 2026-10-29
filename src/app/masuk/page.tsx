@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KeyRound, ShieldCheck, Sparkles } from "lucide-react";
+import { Info, KeyRound, ShieldCheck } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 import { StudentLoginForm } from "@/components/auth/StudentLoginForm";
@@ -64,7 +64,7 @@ export default async function StudentLoginPage() {
             </div>
             <div className="rounded-3xl border border-sun/40 bg-sun-soft p-5">
               <p className="flex items-center gap-2 text-sm font-black text-ink">
-                <Sparkles className="size-4" aria-hidden="true" />
+                <Info className="size-4 text-[#8a5a00]" aria-hidden="true" />
                 Akun demo untuk mencoba
               </p>
               <p className="mt-1.5 text-xs leading-relaxed text-ink/75">

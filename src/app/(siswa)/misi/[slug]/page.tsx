@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Clock, HelpCircle, ListChecks, Lock, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, HelpCircle, ListChecks, Lock, Star, Target } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { getMissionDetail } from "@/server/student";
 import { Button } from "@/components/ui/Button";
@@ -53,7 +53,7 @@ export default async function MissionOverviewPage({
             <Clock className="size-3.5" aria-hidden="true" /> {estimatedMinutes} menit
           </span>
           <span className="chip border-sun/40 bg-sun-soft text-[#7a4a00]">
-            <Sparkles className="size-3.5" aria-hidden="true" /> hingga {rewardXp} XP
+            <Star className="size-3.5 text-sun" aria-hidden="true" /> hingga {rewardXp} XP
           </span>
         </div>
 
@@ -121,7 +121,11 @@ export default async function MissionOverviewPage({
                   <p className="rounded-xl bg-leaf-soft px-3 py-2 text-center text-xs font-semibold text-[#1c5b36]">
                     Setelah selesai, misi “{nextMission.title}” akan terbuka.
                   </p>
-                ) : null}
+                ) : (
+                  <p className="rounded-xl bg-paper px-3 py-2 text-center text-xs font-semibold text-muted">
+                    Ini misi terakhir yang tersedia untuk {subjectLabel ?? "mata pelajaran ini"} saat ini.
+                  </p>
+                )}
               </div>
             ) : (
               <Alert tone="info">
@@ -130,7 +134,7 @@ export default async function MissionOverviewPage({
                   Misi ini masih terkunci
                 </span>
                 <span className="mt-1 block">
-                  Selesaikan misi sebelumnya dulu. Tidak perlu nilai sempurna — yang penting selesai.
+                  Selesaikan misi sebelumnya dulu. Tidak perlu nilai sempurna, yang penting selesai.
                 </span>
               </Alert>
             )}

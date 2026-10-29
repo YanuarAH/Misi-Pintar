@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpenCheck, History, Play, Sparkles, Star, Target, Trophy } from "lucide-react";
+import { Award, BookOpenCheck, History, Play, Star, Target, Trophy } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { getProgress } from "@/server/student";
 import { cancelAttemptAction, startMissionAction } from "@/app/actions/student";
@@ -180,7 +180,7 @@ export default async function ProgressPage({
 
       <section className="card p-5">
         <h2 className="flex items-center gap-2 text-lg font-black">
-          <Sparkles className="size-4 text-sun" aria-hidden="true" />
+          <Award className="size-4 text-sun" aria-hidden="true" />
           Lencana
         </h2>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">

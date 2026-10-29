@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { Save } from "lucide-react";
 import { saveMissionAction, type ActionState } from "@/app/actions/teacher";
 import { Alert } from "@/components/ui/Alert";
@@ -36,8 +36,14 @@ export function MissionForm({
   const [topic, setTopic] = useState(mission?.topic_slug ?? "");
   const topics = options.subjects.find((item) => item.slug === subject)?.topics ?? [];
 
+  // Sama seperti form soal: kirim manual agar React tidak mereset isian saat validasi server gagal.
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    formAction(new FormData(event.currentTarget));
+  }
+
   return (
-    <form action={formAction} className="space-y-4" noValidate>
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       {mission ? <input type="hidden" name="missionId" value={mission.id} /> : null}
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
       {state?.success ? <Alert tone="success">{state.success}</Alert> : null}
@@ -84,6 +90,27 @@ export function MissionForm({
               className="input w-20"
               required
             />
+          </Field>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-paper/60 p-3.5">
+        <p className="text-xs font-black uppercase tracking-wide text-muted">Siapa yang bisa melihat</p>
+        <div className="mt-2.5">
+          <Field
+            label="Audiens misi"
+            htmlFor="audience"
+            hint="Misi kelas otomatis tampil untuk anggota kelas dengan tingkat dan mata pelajaran yang cocok. Misi belajar mandiri juga bisa dilihat siswa tanpa kelas."
+          >
+            <select
+              id="audience"
+              name="audience"
+              defaultValue={mission?.audience ?? "class_only"}
+              className="input"
+            >
+              <option value="class_only">Kelas dengan kurikulum yang cocok</option>
+              <option value="public">Kelas yang cocok dan siswa belajar mandiri</option>
+            </select>
           </Field>
         </div>
       </div>

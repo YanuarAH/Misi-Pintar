@@ -18,7 +18,7 @@ export function JoinClassForm() {
         Kode kelas dari guru
       </label>
       <p className="text-sm text-muted">
-        6 huruf/angka, contoh <span className="font-mono font-bold">MISI5A</span>. Tidak wajib —
+        6 huruf/angka, contoh <span className="font-mono font-bold">MISI5A</span>. Tidak wajib:
         belajar mandiri tetap bisa tanpa kelas.
       </p>
 

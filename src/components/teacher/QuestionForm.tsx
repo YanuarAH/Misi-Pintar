@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { ImagePlus, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { saveQuestionAction, type ActionState } from "@/app/actions/teacher";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -28,13 +29,78 @@ export function QuestionForm({
     question?.options && question.options.length >= 2 ? question.options : ["", "", "", ""],
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
+  const objectUrlRef = useRef<string | null>(null);
+  const [storedId, setStoredId] = useState<string | null>(question?.image_id ?? null);
+  const [localFile, setLocalFile] = useState<{ url: string; name: string } | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  const preview = localFile?.url ?? (storedId ? `/media/${storedId}` : null);
+
+  function revokeObjectUrl() {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }
+
+  function showLocalPreview(file: File) {
+    revokeObjectUrl();
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setLocalFile({ url, name: file.name });
+  }
+
+  function clearImage() {
+    revokeObjectUrl();
+    setLocalFile(null);
+    setStoredId(null);
+    setRemoveImage(true);
+    setImageError(null);
+    const input = formRef.current?.elements.namedItem("image");
+    if (input instanceof HTMLInputElement) input.value = "";
+  }
+
+  // Object URL hanya untuk pratinjau: jangan sampai menumpuk atau bocor saat form ditutup.
+  useEffect(() => revokeObjectUrl, []);
+
+  // Setelah server menyimpan gambar baru, ID dari database menggantikan pratinjau lokal.
+  useEffect(() => {
+    if (state?.success && question?.image_id) {
+      revokeObjectUrl();
+      setLocalFile(null);
+      setStoredId(question.image_id);
+      setRemoveImage(false);
+    }
+  }, [state, question?.image_id]);
 
   useEffect(() => {
-    if (state?.success && !question) formRef.current?.reset();
-  }, [state, question]);
+    if (state?.success) {
+      if (!question) {
+        formRef.current?.reset();
+        revokeObjectUrl();
+        setLocalFile(null);
+        setStoredId(null);
+        setRemoveImage(false);
+        setImageError(null);
+      }
+      router.refresh();
+    }
+  }, [state, question, router]);
+
+  /**
+   * Dikirim manual: kalau memakai `action={formAction}`, React mereset seluruh field
+   * begitu action selesai — termasuk file yang sudah dipilih. Guru jadi kehilangan
+   * isian soal hanya karena satu validasi server gagal.
+   */
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    formAction(new FormData(event.currentTarget));
+  }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4" noValidate>
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4" noValidate>
       <input type="hidden" name="missionId" value={missionId} />
       {question ? <input type="hidden" name="questionId" value={question.id} /> : null}
 
@@ -124,6 +190,100 @@ export function QuestionForm({
           required
         />
       </Field>
+
+      <fieldset className="rounded-2xl border border-line bg-paper p-4">
+        <legend className="label px-1">Gambar soal (opsional)</legend>
+        <input type="hidden" name="removeImage" value={removeImage ? "1" : "0"} />
+
+        {preview ? (
+          <figure className="mb-3 space-y-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt="Pratinjau gambar soal"
+              className="max-h-52 w-auto max-w-full rounded-xl border border-line bg-white object-contain"
+              onError={() =>
+                setImageError(
+                  localFile
+                    ? "Pratinjau gagal dimuat. Coba pilih file gambar lain."
+                    : "Gambar tersimpan tidak bisa dimuat. Pilih ulang file untuk menggantinya.",
+                )
+              }
+            />
+            <figcaption className="text-xs text-muted">
+              {localFile
+                ? `Pratinjau lokal: ${localFile.name}, belum tersimpan sampai kamu menekan ${
+                    question ? "Simpan soal" : "Tambah soal"
+                  }.`
+                : "Gambar tersimpan di server."}
+            </figcaption>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={clearImage}>
+                <X className="size-3.5" aria-hidden="true" />
+                Hapus gambar
+              </Button>
+              {localFile && (storedId || question?.image_id) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    revokeObjectUrl();
+                    setLocalFile(null);
+                    setRemoveImage(false);
+                    setStoredId(question?.image_id ?? null);
+                    setImageError(null);
+                    const input = formRef.current?.elements.namedItem("image");
+                    if (input instanceof HTMLInputElement) input.value = "";
+                  }}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  Batalkan penggantian
+                </Button>
+              ) : null}
+            </div>
+          </figure>
+        ) : (
+          <p className="mb-3 rounded-xl border border-dashed border-line bg-white px-3 py-4 text-center text-xs text-muted">
+            Belum ada gambar untuk soal ini.
+          </p>
+        )}
+
+        <label
+          className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-line-strong px-3 py-2.5 text-sm font-bold text-ink hover:border-primary"
+          htmlFor={`image-${question?.id ?? "baru"}`}
+        >
+          <ImagePlus className="size-4 text-primary" aria-hidden="true" />
+          {preview ? "Ganti gambar" : "Pilih gambar"}
+        </label>
+        <input
+          id={`image-${question?.id ?? "baru"}`}
+          name="image"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setImageError(null);
+            if (!file) return;
+            if (file.size > 3 * 1024 * 1024) {
+              setImageError("Ukuran gambar maksimal 3 MB.");
+              event.target.value = "";
+              return;
+            }
+            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+              setImageError("Format gambar harus JPEG, PNG, atau WebP.");
+              event.target.value = "";
+              return;
+            }
+            setRemoveImage(false);
+            setImageError(null);
+            showLocalPreview(file);
+          }}
+        />
+        <p className="mt-1.5 text-xs text-muted">JPEG, PNG, atau WebP · maksimal 3 MB. Tipe file diperiksa ulang di server.</p>
+        {imageError ? <p className="mt-1 text-xs font-bold text-[#7d2418]">{imageError}</p> : null}
+      </fieldset>
 
       {type === "multiple_choice" ? (
         <fieldset className="space-y-2">

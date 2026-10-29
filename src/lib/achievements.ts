@@ -38,7 +38,7 @@ export const ACHIEVEMENTS: Record<AchievementKey, AchievementDefinition> = {
   pembelajar_tekun: {
     key: "pembelajar_tekun",
     title: "Pembelajar Tekun",
-    description: "Menyelesaikan ketiga misi Matematika.",
+    description: "Menyelesaikan tiga misi berbeda.",
     emoji: "📚",
   },
 };

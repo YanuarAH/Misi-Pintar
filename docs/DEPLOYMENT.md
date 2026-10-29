@@ -84,7 +84,7 @@ di `src/lib/password.ts`, lalu jalankan seed tanpa akun guru.
 
 Lakukan berurutan dan bandingkan dengan hasil lokal:
 
-1. Buka `/` — tiga misi tampil, tanpa error konsol.
+1. Buka `/` — semua misi demo tampil (30 misi), tanpa error konsol.
 2. Daftar siswa baru di `/daftar` (kode kelas opsional; tanpa kode → pilih tingkat di `/kelas-saya`)
    → kode siswa muncul di dashboard. Kode kelas bisa dimasukkan belakangan lewat "Gabung kelas".
 3. Kerjakan satu misi sampai selesai → skor, XP, lencana, dan pembahasan muncul.

@@ -82,6 +82,7 @@ beforeAll(async () => {
     slug: "misi-kelas-5",
     gradeLevel: 5,
     orderIndex: 1,
+    audience: "class_only",
     questions: [{ questionType: "numeric", prompt: "Berapa 3 + 3?", correctAnswer: "6", explanation: "3 + 3 = 6." }],
   });
   mission5Open = await createMissionRef({
@@ -259,7 +260,7 @@ describe("gabung kelas setelah mendaftar", () => {
 });
 
 describe("tugas kelas dan isolasi data", () => {
-  it("tugas kelas tampil hanya untuk anggota kelas itu", async () => {
+  it("misi kelas otomatis tampil berdasarkan mata pelajaran kelas", async () => {
     await adminQuery("insert into mission_classes (mission_id, class_id) values ($1, $2) on conflict do nothing", [
       mission5.id,
       class5B.id,
@@ -271,9 +272,9 @@ describe("tugas kelas dan isolasi data", () => {
     const classes5B = await getStudentClasses(studentViewer(in5B.id), in5B.id);
     expect(classes5B.classes[0].tasks.map((task) => task.slug)).toContain("misi-kelas-5");
 
-    // Kelas 5A bukan penerima tugas, jadi kartunya tidak boleh muncul walau tingkatnya sama.
+    // 5A dan 5B memiliki tingkat + mata pelajaran yang sama, jadi keduanya melihat misi.
     const cards5A = await listMissionCards(studentViewer(in5A.id), in5A.id);
-    expect(cards5A.map((card) => card.id)).not.toContain(mission5.id);
+    expect(cards5A.map((card) => card.id)).toContain(mission5.id);
   });
 
   it("siswa tidak melihat anggota kelas lain", async () => {
@@ -331,7 +332,7 @@ describe("perubahan tingkat kelas tidak menambah akses", () => {
     const other = await registerStudent({ gradeLevel: 5, joinCode: class5B.joinCode });
     const outsider = await registerStudent({ gradeLevel: 5 });
 
-    // mission5 ditugaskan hanya ke 5B.
+    // Misi kelas tersedia untuk anggota kelas dengan tingkat + mapel yang cocok.
     expect((await listMissionCards(studentViewer(other.id), other.id)).map((card) => card.id)).toContain(mission5.id);
 
     await setStudentGrade(studentViewer(outsider.id), outsider.id, 5);
@@ -414,7 +415,7 @@ describe("rotasi kode undangan", () => {
 describe("progres lama tetap aman", () => {
   it("keluar kelas tidak menghapus akun, progres, atau riwayat", async () => {
     const student = await registerStudent({ gradeLevel: 5, joinCode: class5A.joinCode });
-    const started = await startOrResumeAttempt(studentViewer(student.id), student.id, "misi-kelas-5-terbuka");
+    const started = await startOrResumeAttempt(studentViewer(student.id), student.id, "misi-kelas-5");
     if (started.ok) {
       await submitAnswer(studentViewer(student.id), student.id, {
         attemptId: started.state.attemptId,

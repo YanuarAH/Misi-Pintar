@@ -46,6 +46,7 @@ const missionInput = (overrides: Partial<Parameters<typeof createMission>[2]> = 
   story: "Cerita uji",
   learningObjectives: ["Tujuan uji"],
   orderIndex: 1,
+  audience: "public" as const,
   gradeLevel: 5,
   subject: "matematika",
   topic: "pecahan",
@@ -61,7 +62,12 @@ beforeAll(async () => {
   class5B = await createClassroom(teacherA.id, "5B", 5);
   class2A = await createClassroom(teacherA.id, "2A", 2);
 
-  const created5 = await createMission(teacherViewer(teacherA.id), teacherA.id, missionInput({ orderIndex: 1, gradeLevel: 5 }));
+  // Misi kelas otomatis terlihat oleh anggota kelas dengan mata pelajaran dan tingkat yang cocok.
+  const created5 = await createMission(
+    teacherViewer(teacherA.id),
+    teacherA.id,
+    missionInput({ orderIndex: 1, gradeLevel: 5, audience: "class_only" }),
+  );
   mission5 = { id: created5.id, slug: created5.slug };
 
   const created5b = await createMission(
@@ -86,6 +92,9 @@ beforeAll(async () => {
        values ($1, 'numeric', $2, null, '4', '2 + 2 = 4.', 'Jumlahkan.', 'mudah', 1, 1, 'penjumlahan-pengurangan')`,
       [mission.id, `Berapa 2 + 2? (${mission.slug})`],
     );
+    if (mission.id === mission5.id) {
+      await setMissionClasses(teacherViewer(teacherA.id), teacherA.id, mission5.id, [class5A.id, class5B.id]);
+    }
     await setMissionPublished(teacherViewer(teacherA.id), mission.id, true);
   }
 });
@@ -193,8 +202,7 @@ describe("akses siswa ke misi", () => {
     expect(cards2.map((card) => card.id)).toEqual([mission2.id]);
   });
 
-  it("misi yang ditugaskan hanya tampil untuk kelas penerimanya", async () => {
-    // mission5 sudah ditugaskan ke 5A dan 5B, bukan ke kelas 5C.
+  it("misi otomatis tampil hanya untuk kelas dengan mata pelajaran dan tingkat yang cocok", async () => {
     const class5C = await createClassroom(teacherA.id, "5C", 5);
     const in5A = await createStudent({ classId: class5A.id });
     const in5C = await createStudent({ classId: class5C.id });
@@ -203,8 +211,7 @@ describe("akses siswa ke misi", () => {
     const cardsC = await listMissionCards(studentViewer(in5C.id), in5C.id);
 
     expect(cardsA.map((card) => card.id)).toContain(mission5.id);
-    expect(cardsC.map((card) => card.id)).not.toContain(mission5.id);
-    // Misi yang belum ditugaskan tetap terbuka untuk kelas bertingkat sama.
+    expect(cardsC.map((card) => card.id)).toContain(mission5.id);
     expect(cardsC.map((card) => card.id)).toContain(mission5b.id);
   });
 

@@ -12,7 +12,9 @@ export type MissionProgressRow = {
   description: string;
   order_index: number;
   is_published: boolean;
+  audience: "public" | "class_only";
   grade_level: number | null;
+  subject_slug: string | null;
   subject_label: string | null;
   topic_label: string | null;
   question_count: string;
@@ -23,11 +25,10 @@ export type MissionProgressRow = {
   completed_any: boolean;
 };
 
-// Misi yang ditampilkan hanya misi yang boleh dilihat siswa ini: terbit, sudah punya
-// tingkat kelas, sesuai tingkat kelasnya, dan (bila ditugaskan) termasuk kelasnya.
+// Kelas aktif membatasi misi ke mata pelajaran dan tingkat kelas yang diikuti.
 const MISSION_PROGRESS_SQL = `
-  select m.id, m.slug, m.title, m.description, m.order_index, m.is_published,
-         m.grade_level, s.label as subject_label, t.label as topic_label,
+  select m.id, m.slug, m.title, m.description, m.order_index, m.is_published, m.audience,
+         m.grade_level, m.subject_slug, s.label as subject_label, t.label as topic_label,
          (select count(distinct q.slot_index) from questions q
             where q.mission_id = m.id and q.archived_at is null) as question_count,
          (select count(*) from attempts a
@@ -71,10 +72,12 @@ function toCards(rowsIn: MissionProgressRow[]): MissionCard[] {
       description: row.description,
       orderIndex: row.order_index,
       gradeLevel: row.grade_level,
+      subjectSlug: row.subject_slug,
       subjectLabel: row.subject_label,
       topicLabel: row.topic_label,
       questionCount: Number(row.question_count),
       isPublished: row.is_published,
+      audience: row.audience,
       unlocked,
       completed,
       bestScore: row.best_score,
@@ -131,7 +134,9 @@ export async function getStudentOverview(viewer: Viewer, studentId: string): Pro
   const profile = await one<{ grade_level: number | null; classes: string }>(
     viewer,
     `select p.grade_level,
-            (select count(*)::text from class_members cm where cm.student_id = p.id) as classes
+            (select count(*)::text
+               from class_members cm join classes c on c.id = cm.class_id
+              where cm.student_id = p.id and c.archived_at is null) as classes
        from profiles p
       where p.id = $1`,
     [studentId],
@@ -174,6 +179,8 @@ export type StudentClass = {
   id: string;
   name: string;
   gradeLevel: number | null;
+  subjectSlug: string | null;
+  subjectLabel: string | null;
   teacherName: string;
   joinedAt: Date;
   tasks: StudentClassTask[];
@@ -194,21 +201,25 @@ export async function getStudentGrade(viewer: Viewer, studentId: string): Promis
   return row?.grade_level ?? null;
 }
 
-/** Kelas belajar yang diikuti siswa beserta guru dan tugas yang diberikan ke kelas itu. */
+/** Kelas belajar yang diikuti siswa beserta guru dan misi otomatis berdasarkan kurikulum kelas. */
 export async function getStudentClasses(viewer: Viewer, studentId: string): Promise<StudentClassesView> {
   const classes = await rows<{
     id: string;
     name: string;
     grade_level: number | null;
+    subject_slug: string | null;
+    subject_label: string | null;
     teacher_name: string;
     joined_at: Date;
   }>(
     viewer,
-    `select c.id, c.name, c.grade_level, t.display_name as teacher_name, cm.joined_at
+    `select c.id, c.name, c.grade_level, c.subject_slug, s.label as subject_label,
+            t.display_name as teacher_name, cm.joined_at
        from class_members cm
        join classes c on c.id = cm.class_id
+       left join subjects s on s.slug = c.subject_slug
        join profiles t on t.id = c.teacher_id
-      where cm.student_id = $1
+      where cm.student_id = $1 and c.archived_at is null
       order by cm.joined_at asc`,
     [studentId],
   );
@@ -224,14 +235,15 @@ export async function getStudentClasses(viewer: Viewer, studentId: string): Prom
     completed: boolean;
   }>(
     viewer,
-    `select mc.class_id, m.slug, m.title, m.grade_level,
+    `select c.id as class_id, m.slug, m.title, m.grade_level,
             exists (
               select 1 from attempts a
-               where a.student_id = $1 and a.mission_id = m.id and a.completed_at is not null
+               where a.student_id = $1 and a.mission_id = m.id
+                 and a.mode = 'mission' and a.completed_at is not null
             ) as completed
-       from mission_classes mc
-       join missions m on m.id = mc.mission_id
-      where mc.class_id = any($2::uuid[])
+       from classes c
+       join missions m on m.grade_level = c.grade_level and m.subject_slug = c.subject_slug
+      where c.id = any($2::uuid[])
         and m.is_published and m.archived_at is null
       order by m.order_index asc`,
     [studentId, classes.map((row) => row.id)],
@@ -243,6 +255,8 @@ export async function getStudentClasses(viewer: Viewer, studentId: string): Prom
       id: row.id,
       name: row.name,
       gradeLevel: row.grade_level,
+      subjectSlug: row.subject_slug,
+      subjectLabel: row.subject_label,
       teacherName: row.teacher_name,
       joinedAt: new Date(row.joined_at),
       tasks: tasks
@@ -328,7 +342,9 @@ export async function getMissionDetail(viewer: Viewer, studentId: string, slug: 
   if (!card) return null;
 
   const index = cards.findIndex((item) => item.id === mission.id);
-  const next = cards[index + 1] ?? null;
+  const next = cards.slice(index + 1).find(
+    (item) => item.gradeLevel === card.gradeLevel && item.subjectSlug === card.subjectSlug,
+  );
 
   return {
     mission,
@@ -372,9 +388,10 @@ async function buildPlayState(
     difficulty: "mudah" | "sedang" | "tantangan";
     answer_unit: string;
     order_index: number;
+    image_id: string | null;
   }>(
     viewer,
-    `select id, question_type, prompt, options, hint, difficulty, answer_unit, order_index
+    `select id, question_type, prompt, options, hint, difficulty, answer_unit, order_index, image_id
        from questions where id = any($1::uuid[]) order by order_index asc`,
     [attempt.question_ids],
   );
@@ -413,6 +430,7 @@ async function buildPlayState(
       id: question.id,
       type: question.question_type,
       prompt: question.prompt,
+      imageUrl: question.image_id ? `/media/${question.image_id}` : null,
       options: question.options ?? [],
       hint: question.hint,
       difficulty: question.difficulty,
@@ -761,9 +779,21 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
   const attempt = await one<AttemptRow>(viewer, "select * from attempts where id = $1", [attemptId]);
   if (!attempt) return null;
 
-  const mission = await one<{ id: string; slug: string; title: string; order_index: number; learning_objectives: string[] }>(
+  const mission = await one<{
+    id: string;
+    slug: string;
+    title: string;
+    order_index: number;
+    grade_level: number | null;
+    subject_slug: string | null;
+    subject_label: string | null;
+    learning_objectives: string[];
+  }>(
     viewer,
-    "select id, slug, title, order_index, learning_objectives from missions where id = $1",
+    `select m.id, m.slug, m.title, m.order_index, m.grade_level, m.subject_slug,
+            s.label as subject_label, m.learning_objectives
+       from missions m left join subjects s on s.slug = m.subject_slug
+      where m.id = $1`,
     [attempt.mission_id],
   );
   if (!mission) return null;
@@ -800,13 +830,11 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
     [attempt.student_id],
   );
 
-  const siblings = await rows<{ id: string; slug: string; title: string; order_index: number }>(
-    viewer,
-    "select id, slug, title, order_index from missions where archived_at is null and is_published order by order_index asc",
+  const cards = viewer?.role === "student" ? await listMissionCards(viewer, attempt.student_id) : [];
+  const currentIndex = cards.findIndex((card) => card.id === mission.id);
+  const nextCard = cards.slice(currentIndex + 1).find(
+    (card) => card.gradeLevel === mission.grade_level && card.subjectSlug === mission.subject_slug,
   );
-  const currentIndex = siblings.findIndex((row) => row.id === mission.id);
-  const nextRow = siblings[currentIndex + 1] ?? null;
-  const nextUnlocked = Boolean(attempt.completed_at);
 
   const xpTotal = await one<{ xp: string }>(
     viewer,
@@ -832,6 +860,8 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
       slug: mission.slug,
       title: mission.title,
       orderIndex: mission.order_index,
+      gradeLevel: mission.grade_level,
+      subjectLabel: mission.subject_label,
       objectives: mission.learning_objectives,
     },
     student: student
@@ -850,7 +880,9 @@ export async function getAttemptResult(viewer: Viewer, attemptId: string): Promi
       orderIndex: row.order_index,
     })),
     earnedAchievements: achievements.map((row) => ({ key: row.achievement_key, earnedAt: new Date(row.earned_at) })),
-    nextMission: nextRow ? { slug: nextRow.slug, title: nextRow.title, unlocked: nextUnlocked } : null,
+    nextMission: nextCard
+      ? { slug: nextCard.slug, title: nextCard.title, unlocked: nextCard.unlocked }
+      : null,
     accuracy: attempt.total_questions ? Math.round((attempt.correct_count / attempt.total_questions) * 100) : 0,
     mode: attempt.mode,
     sourceAttemptId: attempt.source_attempt_id,

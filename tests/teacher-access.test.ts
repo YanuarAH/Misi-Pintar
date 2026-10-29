@@ -118,6 +118,12 @@ describe("batas akses guru", () => {
   });
 
   it("ringkasan guru hanya menghitung kelasnya", async () => {
+    const secondClassA = await createClassroom(teacherA.id, "Kelas A Kedua");
+    await adminQuery("insert into class_members (class_id, student_id) values ($1, $2)", [
+      secondClassA.id,
+      studentA.id,
+    ]);
+
     const dashboardB = await getTeacherDashboard(viewerB(), teacherB.id);
     expect(dashboardB.summary.students).toBe(1);
     expect(dashboardB.summary.completions).toBe(0);
@@ -126,7 +132,18 @@ describe("batas akses guru", () => {
     const dashboardA = await getTeacherDashboard(viewerA(), teacherA.id);
     expect(dashboardA.summary.students).toBe(1);
     expect(dashboardA.summary.completions).toBe(1);
+    expect(dashboardA.recent).toHaveLength(1);
     expect(dashboardA.recent[0].studentName).toContain("Siswa");
+    expect(dashboardA.subjectProgress).toEqual([
+      expect.objectContaining({
+        gradeLevel: 5,
+        subjectSlug: "matematika",
+        enrolled: 1,
+        attempted: 1,
+        completions: 1,
+        avgAccuracy: 100,
+      }),
+    ]);
   });
 });
 

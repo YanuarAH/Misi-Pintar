@@ -25,6 +25,7 @@ export function StudentLoginForm() {
           maxLength={12}
           required
           placeholder="DEMO1234"
+          aria-describedby="accessCode-hint"
         />
       </Field>
 
@@ -40,6 +41,7 @@ export function StudentLoginForm() {
           required
           className="input tracking-[0.4em]"
           placeholder="••••"
+          aria-describedby="pin-hint"
         />
       </Field>
 

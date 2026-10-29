@@ -4,9 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Award,
   CheckCircle2,
   RotateCcw,
-  Sparkles,
   Star,
   Target,
   XCircle,
@@ -149,7 +149,7 @@ export default async function AttemptResultPage({
           {earnedInAttempt.length > 0 ? (
             <section className="rounded-3xl border border-sun/50 bg-sun-soft p-5">
               <h2 className="flex items-center gap-2 text-lg font-black">
-                <Sparkles className="size-5 text-sun" aria-hidden="true" />
+                <Award className="size-5 text-sun" aria-hidden="true" />
                 {isTeacher ? "Lencana yang didapat" : "Lencana baru!"}
               </h2>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -299,23 +299,25 @@ export default async function AttemptResultPage({
                   ? "Kamu siap melanjutkan ke misi berikutnya."
                   : "Ulangi misi ini untuk memperkuat pemahaman, atau lanjut dan kembali lagi nanti."}
             </p>
+            {!isPractice && !nextMission ? (
+              <p className="mt-2 rounded-xl bg-leaf-soft px-3 py-2 text-sm text-[#1c5b36]">
+                Semua misi {mission.subjectLabel ?? "mata pelajaran ini"}{" "}
+                {mission.gradeLevel === null ? "yang tersedia" : `kelas ${mission.gradeLevel}`} sudah selesai.
+                Kamu bisa melihat progres atau kembali lagi nanti untuk misi baru.
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-3">
               {isPractice ? (
                 <ButtonLink href={`/misi/${mission.slug}`}>
-                  <Star className="size-4" aria-hidden="true" />
                   Kembali ke misi {mission.title}
-                  <ArrowRight className="size-4" aria-hidden="true" />
                 </ButtonLink>
-              ) : nextMission ? (
+              ) : nextMission?.unlocked ? (
                 <ButtonLink href={`/misi/${nextMission.slug}`}>
-                  <Star className="size-4" aria-hidden="true" />
-                  Misi berikutnya: {nextMission.title}
-                  <ArrowRight className="size-4" aria-hidden="true" />
+                  Lanjut misi berikutnya: {nextMission.title}
                 </ButtonLink>
               ) : (
                 <ButtonLink href="/progres">
                   Lihat progres belajar
-                  <ArrowRight className="size-4" aria-hidden="true" />
                 </ButtonLink>
               )}
               {isPractice ? null : (

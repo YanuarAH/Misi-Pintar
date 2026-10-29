@@ -131,17 +131,35 @@ function extractAnswerValue(answer: string): Frac | null {
 }
 
 describe("konten pembelajaran", () => {
-  it("berisi 3 misi dengan 10 soal each dan urutan yang benar", () => {
-    expect(seedMissions).toHaveLength(3);
-    expect(seedMissions.map((mission) => mission.orderIndex)).toEqual([1, 2, 3]);
+  it("berisi 30 misi kelas 4-6 pada tiga mapel utama dan Matematika kelas 5", () => {
+    expect(seedMissions).toHaveLength(30);
     for (const mission of seedMissions) {
       expect(mission.questions).toHaveLength(10);
+      expect(mission.questionTopics).toHaveLength(10);
       expect(mission.learningObjectives.length).toBeGreaterThanOrEqual(3);
       expect(mission.story.length).toBeGreaterThan(80);
       expect(mission.slug).toMatch(/^[a-z0-9-]+$/);
     }
+
+    // Urutan misi dimulai dari 1 dan tidak bentrok pada setiap tingkat + mata pelajaran.
+    const orders = new Map<string, number[]>();
+    for (const mission of seedMissions) {
+      const group = `${mission.gradeLevel}|${mission.subject}`;
+      orders.set(group, [...(orders.get(group) ?? []), mission.orderIndex]);
+    }
+    expect(orders.size).toBe(10);
+    for (const grade of [4, 5, 6]) {
+      for (const subject of ["ipa", "bahasa-indonesia", "bahasa-inggris"]) {
+        expect(orders.has(`${grade}|${subject}`), `konten ${subject} kelas ${grade}`).toBe(true);
+      }
+    }
+    expect(orders.has("5|matematika")).toBe(true);
+    for (const list of orders.values()) {
+      expect(list.sort((a, b) => a - b)).toEqual([1, 2, 3]);
+    }
+
     const total = seedMissions.reduce((sum, mission) => sum + mission.questions.length, 0);
-    expect(total).toBe(30);
+    expect(total).toBe(300);
   });
 
   it("semua soal punya teks, penjelasan, petunjuk, dan tingkat kesulitan yang sah", () => {
@@ -229,6 +247,7 @@ describe("konten pembelajaran", () => {
 
   it("menyebar posisi jawaban benar agar tidak bisa ditebak dari pola", () => {
     const total: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    let choiceCount = 0;
 
     for (const mission of seedMissions) {
       const positions: number[] = [];
@@ -238,13 +257,17 @@ describe("konten pembelajaran", () => {
         expect(index, `${mission.slug}: jawaban "${question.answer}" tidak ada di pilihan`).toBeGreaterThanOrEqual(0);
         positions.push(index + 1);
         total[index + 1] += 1;
+        choiceCount += 1;
       }
       expect(new Set(positions).size, `${mission.slug} memakai posisi jawaban yang terlalu seragam`).toBeGreaterThanOrEqual(2);
     }
 
+    // Sebaran diuji secara proporsional supaya tetap relevan saat jumlah soal bertambah.
+    const minimum = Math.floor(choiceCount * 0.15);
+    const maximum = Math.ceil(choiceCount * 0.35);
     for (const position of [1, 2, 3, 4]) {
-      expect(total[position], `posisi ${position} terlalu jarang dipakai`).toBeGreaterThanOrEqual(2);
-      expect(total[position], `posisi ${position} terlalu sering dipakai`).toBeLessThanOrEqual(5);
+      expect(total[position], `posisi ${position} terlalu jarang dipakai`).toBeGreaterThanOrEqual(minimum);
+      expect(total[position], `posisi ${position} terlalu sering dipakai`).toBeLessThanOrEqual(maximum);
     }
   });
 });

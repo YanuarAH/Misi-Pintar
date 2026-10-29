@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpen, LogOut, Sparkles, UserRound, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Info, LogOut, UserRound, Users } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { getStudentClasses } from "@/server/student";
@@ -32,7 +32,7 @@ export default async function MyClassesPage({
       {isNew ? (
         <Alert tone="success">
           Akunmu sudah dibuat. Kode siswa:{" "}
-          <strong className="font-mono tracking-wider">{profile?.access_code}</strong> — simpan kode ini untuk
+          <strong className="font-mono tracking-wider">{profile?.access_code}</strong>, simpan kode ini untuk
           masuk lagi. Pilih tingkat kelasmu di bawah agar misi bisa dimulai.
         </Alert>
       ) : null}
@@ -58,7 +58,7 @@ export default async function MyClassesPage({
           <strong className="text-ink">
             {myClasses.gradeLevel === null ? "belum dipilih" : gradeLabel(myClasses.gradeLevel)}
           </strong>
-          . Misi yang tampil mengikuti tingkat ini.
+          . Jika mengikuti kelas, misi juga disaring berdasarkan mata pelajaran kelas tersebut.
         </p>
         <GradePicker gradeLevel={myClasses.gradeLevel} />
       </section>
@@ -86,9 +86,9 @@ export default async function MyClassesPage({
         {myClasses.classes.length === 0 ? (
           <div className="card p-5">
             <p className="flex items-start gap-2 text-sm text-muted">
-              <Sparkles className="mt-0.5 size-4 shrink-0 text-sun" aria-hidden="true" />
-              Kamu belum bergabung ke kelas mana pun. Semua misi yang terbit untuk tingkat kelasmu tetap bisa
-              dikerjakan di peta misi.
+              <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              Kamu belum bergabung ke kelas mana pun. Misi belajar mandiri yang terbit untuk tingkat kelasmu tetap
+              bisa dikerjakan di peta misi.
             </p>
           </div>
         ) : (
@@ -103,6 +103,9 @@ export default async function MyClassesPage({
                   </p>
                   <p className="mt-1 text-xs font-bold uppercase tracking-wide text-muted">
                     {classroom.gradeLevel === null ? "Tingkat kelas belum diatur guru" : gradeLabel(classroom.gradeLevel)}
+                  </p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-wide text-muted">
+                    Mata pelajaran: {classroom.subjectLabel ?? "belum diatur guru"}
                   </p>
                 </div>
                 <form action={leaveClassAction}>
@@ -120,10 +123,14 @@ export default async function MyClassesPage({
               <div className="mt-4 rounded-2xl bg-paper p-3.5">
                 <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted">
                   <BookOpen className="size-3.5" aria-hidden="true" />
-                  Tugas dari kelas ini
+                  Misi {classroom.subjectLabel ?? "kelas"} yang tersedia otomatis
                 </p>
                 {classroom.tasks.length === 0 ? (
-                  <p className="mt-1.5 text-sm text-muted">Belum ada misi yang ditugaskan untuk kelas ini.</p>
+                  <p className="mt-1.5 text-sm text-muted">
+                    {classroom.subjectLabel
+                      ? "Belum ada misi terbit untuk tingkat dan mata pelajaran kelas ini."
+                      : "Minta guru mengatur mata pelajaran kelas agar misi yang sesuai dapat muncul."}
+                  </p>
                 ) : (
                   <ul className="mt-2 space-y-1.5">
                     {classroom.tasks.map((task) => (
@@ -149,7 +156,7 @@ export default async function MyClassesPage({
       </section>
 
       <p className="text-center text-xs text-muted">
-        Keanggotaan kelas hanya menambah tugas dari guru. Progres dan riwayat tetap milikmu.
+        Misi di peta dipisahkan berdasarkan mata pelajaran kelas yang kamu ikuti. Progres dan riwayat tetap milikmu.
       </p>
     </div>
   );

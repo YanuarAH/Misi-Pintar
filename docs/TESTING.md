@@ -31,8 +31,8 @@ uji ke database pengembangan atau produksi.**
 
 ```
 npx vitest run
-Test Files  11 passed (11)
-Tests       153 passed (153)
+Test Files  14 passed (14)
+Tests       194 passed (194)
 ```
 
 ## Matriks skenario wajib
@@ -64,9 +64,9 @@ Tests       153 passed (153)
 | 19 | Guru bisa menambah varian/memindahkan slot; terbit butuh tiap slot valid | `tests/topics-practice.test.ts` (describe "guru mengelola slot dan topik", "validasi terbit per slot") |
 | 20 | Guru membuat misi Kelas 2 & Kelas 5 di satu akun; daftar bisa difilter | `tests/kelas-kurikulum.test.ts` (describe "tingkat kelas vs kelas belajar") |
 | 21 | Soal tiap misi tidak tercampur | `tests/kelas-kurikulum.test.ts` ("isolasi soal antar misi") |
-| 22 | Misi Kelas 5 tidak bisa ditugaskan ke kelas Kelas 2 (UI & trigger DB) | `tests/kelas-kurikulum.test.ts` ("penugasan misi ke kelas belajar") |
-| 23 | Satu misi bisa ditugaskan ke beberapa kelas bertingkat sama | sama, "satu misi dapat ditugaskan ke beberapa kelas" |
-| 24 | Siswa hanya melihat misi tingkatnya / yang ditugaskan; draf sembunyi | `tests/kelas-kurikulum.test.ts` (describe "akses siswa ke misi") |
+| 22 | Kelas memiliki satu mata pelajaran; kelas lama dapat dikonfigurasi | `tests/misi-audience.test.ts` |
+| 23 | Misi otomatis tersedia hanya untuk kelas dengan tingkat + mata pelajaran yang cocok | `tests/misi-audience.test.ts` |
+| 24 | Dashboard dan daftar kelas siswa memisahkan misi menurut mata pelajaran; draf sembunyi | `tests/misi-audience.test.ts`, `tests/kelas-kurikulum.test.ts` |
 | 25 | Riwayat lama tetap terbaca setelah kategori berubah | `tests/kelas-kurikulum.test.ts` ("percobaan dan progres lama tetap dapat dibuka") |
 | 26 | RLS penugasan & soal lintas tingkat | `tests/kelas-kurikulum.test.ts` (describe "keamanan akses") |
 | 27 | Siswa mendaftar tanpa kode kelas | `tests/kelas-opsional.test.ts` (describe "pendaftaran tanpa kode kelas") |
@@ -84,6 +84,28 @@ Tests       153 passed (153)
 | 39 | Siswa tidak bisa mengubah tingkat siswa lain (RLS) | sama |
 | 40 | Rotasi kode membuat kode lama tidak berlaku | `tests/kelas-opsional.test.ts` (describe "rotasi kode undangan") |
 | 41 | Guru lain tidak bisa merotasi kode kelas orang | sama |
+| 42 | Guru mengarsipkan kelasnya; siswa tidak melihat kelas arsip | `tests/kelas-media.test.ts` (describe "arsip kelas") |
+| 43 | Guru lain tidak bisa mengarsipkan/menghapus kelas orang | sama |
+| 44 | Kelas kosong boleh dihapus permanen | sama |
+| 45 | Kelas berisi siswa harus diarsipkan, kelas kosong dapat dihapus | sama |
+| 46 | Kelas arsip menolak anggota baru dan tidak membuka akses misi (server + trigger) | sama |
+| 47 | Kelas arsip tidak memberi akses tugas; progres mandiri tetap | sama |
+| 48 | Siswa tidak bisa mengubah/menghapus kelas lewat SQL | sama |
+| 49 | Simpan gambar PNG & akses baca guru/siswa yang berhak | `tests/kelas-media.test.ts` (describe "gambar soal") |
+| 50 | Tolak tipe tidak didukung & ukuran >3 MB tanpa file tersisa | sama |
+| 51 | Ganti gambar menghapus file lama | sama |
+| 52 | File yang dipakai soal lain tidak terhapus | sama |
+| 53 | Lepas gambar tidak menghapus soal | sama |
+| 54 | Guru lain tidak bisa mengganti gambar soal orang | sama |
+| 55 | Payload siswa memuat URL gambar; soal tanpa gambar tetap jalan | sama |
+| 56 | Siswa tidak bisa menghapus baris media lewat SQL | sama |
+| 57 | Misi kelas otomatis terlihat oleh anggota kelas dengan tingkat + mapel yang cocok | `tests/misi-audience.test.ts` |
+| 58 | Siswa di kelas dengan mapel lain tidak melihat misi tersebut | sama |
+| 59 | Misi kelas tetap dapat diterbitkan tanpa penugasan manual | sama |
+| 60 | Siswa tanpa kelas aktif tetap dapat melihat misi belajar mandiri `public` sesuai tingkat | sama |
+| 61 | Mengubah misi menjadi misi kelas mencabut akses siswa di luar kelas | sama |
+| 62 | Kelas arsip berhenti memberi akses misi kelas | sama |
+| 63 | Misi kelas lama mulai tersedia setelah mata pelajaran kelas diatur | sama |
 
 ## Cakupan per file
 
@@ -91,21 +113,23 @@ Tests       153 passed (153)
 | --- | --- |
 | `tests/normalize.test.ts` | Normalisasi angka Indonesia, pecahan, penolakan input ambigu, perbandingan pilihan ganda |
 | `tests/scoring.test.ts` | Skor, XP (10/benar + 20 bonus), label akurasi, aturan lencana |
-| `tests/content.test.ts` | 3 misi × 10 soal; struktur, pilihan unik, jawaban ∈ pilihan; **menghitung ulang ekspresi aritmetika dengan rasional eksak**; keseimbangan posisi jawaban PG; 6 soal varian (slot, topik, aritmetika) |
+| `tests/content.test.ts` | 30 misi × 10 soal; cakupan dan urutan tingkat + mapel, struktur, pilihan unik, jawaban ∈ pilihan; **menghitung ulang ekspresi aritmetika dengan rasional eksak**; keseimbangan posisi jawaban PG; 6 soal varian (slot, topik, aritmetika) |
 | `tests/seed-config.test.ts` | Aturan kredensial seed: default hanya untuk non-produksi, tolak password demo/pendek |
 | `tests/validation.test.ts` | Skema Zod soal/misi/pendaftaran + `questionIssues()` |
 | `tests/rls.test.ts` | RLS untuk anonim, siswa, guru; larangan menulis lintas pengguna; kolom sensitif tidak terbaca |
 | `tests/mission-flow.test.ts` | Siklus hidup percobaan, grading, XP, lencana, unlock, resume, idempotensi, imutabilitas |
-| `tests/teacher-access.test.ts` | Batas antar guru, validasi terbit, soft delete, ringkasan dasbor |
+| `tests/teacher-access.test.ts` | Batas antar guru, validasi terbit, soft delete, ringkasan dasbor dan kemajuan per mapel |
 | `tests/topics-practice.test.ts` | Pemilihan satu varian per slot, latihan dari soal salah (tanpa XP/lencana), isolasi latihan antarsiswa, peta kemampuan per topik, CRUD slot/topik guru, validasi terbit per slot |
-| `tests/kelas-kurikulum.test.ts` | Tingkat kelas vs kelas belajar, filter daftar misi, isolasi soal, penugasan misi (termasuk penolakan lintas tingkat & trigger DB), akses siswa, misi belum dikategorikan, riwayat lama, CRUD + arsip, RLS penugasan |
+| `tests/kelas-kurikulum.test.ts` | Tingkat kelas vs kelas belajar, filter daftar misi, isolasi soal, akses siswa berbasis tingkat + mapel kelas, misi belum dikategorikan, riwayat lama, CRUD + arsip, RLS |
+| `tests/kelas-media.test.ts` | Arsip/pulihkan/hapus kelas (termasuk trigger arsip & RLS), gambar soal (simpan/ganti/lepas, validasi tipe & ukuran, file bersama, akses `/media`) |
+| `tests/misi-audience.test.ts` | Akses misi otomatis berdasarkan tingkat + mata pelajaran, pemisahan kelas Matematika/IPAS, misi kelas tanpa penugasan manual, belajar mandiri tanpa kelas, konfigurasi kelas lama, perubahan `public`→`class_only`, arsip kelas |
 | `tests/kelas-opsional.test.ts` | Pendaftaran tanpa kode kelas, login mandiri, konten sesuai tingkat profil, gabung kelas via kode (ganda/lintas tingkat/pembatasan), isolasi anggota & tugas, kewenangan guru, progres lama setelah keluar kelas |
 
 ## Uji manual yang sudah dijalankan
 
 Production build (`npm run build && npm start`, port 3100), browser sungguhan:
 
-1. Landing menampilkan 3 misi dari database.
+1. Landing menampilkan seluruh misi terbit dari database (30 misi pada data demo).
 2. Pendaftaran siswa baru **tanpa kode kelas** (diarahkan ke `/kelas-saya`, pilih tingkat) lalu
    bergabung lewat `MISI5A` dari halaman itu → guru kelas tampil di daftar kelas.
 3. Misi 1: 10 soal dijawab benar → 100 skor, 120 XP, lencana Penjelajah/Bintang Misi/Sempurna.

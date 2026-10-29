@@ -85,6 +85,8 @@ export const profileUpdateSchema = z.object({
   avatarKey: z.enum(AVATAR_KEYS as unknown as [string, ...string[]]),
 });
 
+export const classSubjectSchema = z.string().trim().min(2, "Pilih mata pelajaran.").max(40);
+
 export const classSchema = z.object({
   name: z.string().trim().min(2, "Nama kelas minimal 2 huruf.").max(60, "Nama kelas maksimal 60 huruf."),
   gradeLevel: z.coerce
@@ -92,6 +94,7 @@ export const classSchema = z.object({
     .int()
     .min(1, "Tingkat kelas 1-6.")
     .max(6, "Tingkat kelas 1-6."),
+  subject: classSubjectSchema,
 });
 
 export const missionSchema = z.object({
@@ -110,6 +113,7 @@ export const missionSchema = z.object({
     .max(8, "Maksimal 8 tujuan pembelajaran.")
     .default([]),
   orderIndex: z.coerce.number().int().min(1, "Urutan minimal 1.").max(99),
+  audience: z.enum(["public", "class_only"], { message: "Pilih siapa yang bisa melihat misi." }).default("public"),
   gradeLevel: z.coerce
     .number({ message: "Pilih tingkat kelas misi." })
     .int()

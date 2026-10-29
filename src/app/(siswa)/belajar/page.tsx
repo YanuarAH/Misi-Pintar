@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpen, Flame, Sparkles, Star, Trophy } from "lucide-react";
+import { ArrowRight, Award, BookOpen, Flame, Star, Trophy } from "lucide-react";
 import { requireStudent, viewerOf } from "@/lib/auth";
 import { one } from "@/lib/db";
 import { getStudentOverview } from "@/server/student";
@@ -34,13 +34,25 @@ export default async function StudentDashboardPage({
   const isNew = params.baru === "1";
   const earnedKeys = new Set(overview.achievements.map((item) => item.key));
   const continueCard = overview.continueCard;
+  const missionGroups = overview.cards.reduce(
+    (groups, card) => {
+      const subject = card.subjectLabel ?? "Materi lainnya";
+      const grade = card.gradeLevel;
+      const key = `${grade ?? "-"}|${subject}`;
+      const group = groups.get(key) ?? { subject, grade, cards: [] };
+      group.cards.push(card);
+      groups.set(key, group);
+      return groups;
+    },
+    new Map<string, { subject: string; grade: number | null; cards: typeof overview.cards }>(),
+  );
 
   return (
     <div className="space-y-7">
       {isNew ? (
         <Alert tone="success">
-          Akunmu sudah dibuat! Kode siswa kamu: <strong className="font-mono tracking-wider">{profile?.access_code}</strong>{" "}
-          — simpan kode ini untuk masuk lagi. PIN tetap rahasia, ya.
+          Akunmu sudah dibuat! Kode siswa kamu: <strong className="font-mono tracking-wider">{profile?.access_code}</strong>,{" "}
+          simpan kode ini untuk masuk lagi. PIN tetap rahasia, ya.
         </Alert>
       ) : null}
 
@@ -52,6 +64,24 @@ export default async function StudentDashboardPage({
           </Link>{" "}
           agar misi yang sesuai bisa muncul.
         </Alert>
+      ) : null}
+
+      {overview.completedMissions === 0 ? (
+        <section className="card border-primary/20 bg-primary-soft/40 p-4 sm:p-5" aria-labelledby="panduan-siswa">
+          <h2 id="panduan-siswa" className="text-base font-black">Mulai belajar dalam 3 langkah</h2>
+          <ol className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+            <li className="rounded-xl bg-paper/80 p-3">
+              <span className="font-black text-primary-strong">1.</span> Pilih tingkat atau gabung kelas di{" "}
+              <Link href="/kelas-saya" className="font-bold text-primary underline underline-offset-2">Kelas saya</Link>.
+            </li>
+            <li className="rounded-xl bg-paper/80 p-3">
+              <span className="font-black text-primary-strong">2.</span> Pilih misi yang terbuka pada mata pelajaranmu.
+            </li>
+            <li className="rounded-xl bg-paper/80 p-3">
+              <span className="font-black text-primary-strong">3.</span> Selesaikan soal, baca pembahasan, lalu lihat progresmu.
+            </li>
+          </ol>
+        </section>
       ) : null}
 
       <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -83,7 +113,7 @@ export default async function StudentDashboardPage({
               <stat.icon className="size-4.5" aria-hidden="true" />
             </span>
             <p className="stat-number">{stat.value}</p>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{stat.label}</p>
+            <p className="text-xs font-bold text-muted">{stat.label}</p>
           </div>
         ))}
       </section>
@@ -93,13 +123,9 @@ export default async function StudentDashboardPage({
           aria-labelledby="lanjut-judul"
           className="relative overflow-hidden rounded-3xl bg-ink p-5 text-white sm:p-6"
         >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/40 blur-2xl"
-          />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-sun">
+              <p className="text-xs font-bold text-sun">
                 {continueCard.openAttemptId ? "Lanjutkan misi" : continueCard.completed ? "Ulangi untuk skor lebih baik" : "Misi berikutnya"}
               </p>
               <h2 id="lanjut-judul" className="mt-1.5 flex items-center gap-2 text-xl font-black sm:text-2xl">
@@ -115,7 +141,6 @@ export default async function StudentDashboardPage({
               <input type="hidden" name="slug" value={continueCard.slug} />
               <Button type="submit" variant="sun">
                 {continueCard.openAttemptId ? "Lanjutkan" : "Mulai sekarang"}
-                <ArrowRight className="size-4" aria-hidden="true" />
               </Button>
             </form>
           </div>
@@ -131,20 +156,44 @@ export default async function StudentDashboardPage({
             <p className="text-sm text-muted">Pilih misi yang terbuka, lalu selesaikan satu per satu.</p>
           </div>
         </div>
-        <MissionMap
-          cards={overview.cards}
-          emptyHint={
-            overview.gradeLevel === null
-              ? "Pilih tingkat kelasmu di halaman Kelas saya. Setelah itu misi yang sesuai akan muncul di sini."
-              : `Belum ada misi terbit untuk ${gradeLabel(overview.gradeLevel)}. Coba muat ulang nanti, atau tanyakan kepada gurumu.`
-          }
-        />
+        {missionGroups.size === 0 ? (
+          <MissionMap
+            cards={[]}
+            emptyHint={
+              overview.gradeLevel === null
+                ? "Pilih tingkat kelasmu di halaman Kelas saya. Setelah itu misi yang sesuai akan muncul di sini."
+                : `Belum ada misi untuk kelas dan mata pelajaran yang kamu ikuti. Coba muat ulang nanti, atau tanyakan kepada gurumu.`
+            }
+          />
+        ) : (
+          <div className="space-y-6">
+            {[...missionGroups.entries()].map(([key, group]) => (
+              <section key={key} aria-label={`${group.subject} ${gradeLabel(group.grade)}`}>
+                <h3 className="mb-2 text-base font-black">
+                  {group.subject} <span className="font-semibold text-muted">· {gradeLabel(group.grade)}</span>
+                </h3>
+                <MissionMap cards={group.cards} />
+                {group.cards.every((card) => card.completed) ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-leaf/30 bg-leaf-soft p-3.5 text-sm text-[#1c5b36]">
+                    <p>
+                      Semua misi {group.subject} kelas {group.grade} yang tersedia sudah selesai. Cek lagi nanti untuk misi baru.
+                    </p>
+                    <Link href="/kelas-saya" className="inline-flex shrink-0 items-center gap-1 font-bold underline underline-offset-2">
+                      Kelas saya
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                ) : null}
+              </section>
+            ))}
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="lencana-judul" className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="card p-5">
           <h2 id="lencana-judul" className="flex items-center gap-2 text-lg font-black">
-            <Sparkles className="size-4 text-sun" aria-hidden="true" />
+            <Award className="size-4 text-sun" aria-hidden="true" />
             Lencana
           </h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">

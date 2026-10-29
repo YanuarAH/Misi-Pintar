@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpenCheck, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, Award, BookOpenCheck, Target } from "lucide-react";
 import { requireTeacher, viewerOf } from "@/lib/auth";
 import { getStudentReport } from "@/server/teacher";
 import { Avatar } from "@/components/ui/Avatar";
@@ -211,7 +211,7 @@ export default async function StudentReportPage({ params }: { params: Promise<{ 
 
           <section className="card p-4">
             <h2 className="flex items-center gap-2 text-base font-black">
-              <Sparkles className="size-4 text-sun" aria-hidden="true" />
+              <Award className="size-4 text-sun" aria-hidden="true" />
               Lencana
             </h2>
             {report.achievements.length === 0 ? (

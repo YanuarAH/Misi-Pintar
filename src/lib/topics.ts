@@ -14,6 +14,13 @@ export const TOPICS = [
   { key: "luas", label: "Luas", missionSlug: "arsitek-mini" },
   { key: "volume", label: "Volume", missionSlug: "arsitek-mini" },
   { key: "satuan", label: "Satuan pengukuran", missionSlug: "arsitek-mini" },
+  { key: "makhluk-hidup", label: "Makhluk hidup & lingkungan", missionSlug: "detektif-makhluk-hidup" },
+  { key: "wujud-zat", label: "Wujud zat & perubahannya", missionSlug: "detektif-makhluk-hidup" },
+  { key: "membaca-teks", label: "Membaca & memahami teks", missionSlug: "petualangan-membaca" },
+  { key: "kosa-kata-inggris", label: "Kosakata bahasa Inggris", missionSlug: "my-daily-words" },
+  { key: "tubuh-manusia", label: "Tubuh manusia & kesehatan", missionSlug: null },
+  { key: "energi-listrik", label: "Energi & listrik", missionSlug: null },
+  { key: "bumi-lingkungan", label: "Bumi & lingkungan", missionSlug: null },
   { key: "umum", label: "Topik umum", missionSlug: null },
 ] as const;
 

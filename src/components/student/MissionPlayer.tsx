@@ -8,19 +8,42 @@ import {
   Lightbulb,
   Loader2,
   Send,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import { completeAttemptAction, submitAnswerAction } from "@/app/actions/student";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { AudioSpeechButton } from "@/components/ui/AudioSpeechButton";
 import type { PlayQuestion } from "@/server/types";
 import { cn } from "@/lib/cn";
 
 type Feedback = { isCorrect: boolean; correctAnswer: string; explanation: string };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+
+function QuestionImage({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-sm text-muted">
+        Gambar soal tidak dapat dimuat. Kamu tetap bisa menjawab berdasarkan teks di atas.
+      </p>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt="Gambar pada soal"
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="mt-3 h-auto max-h-[26rem] w-auto max-w-full rounded-2xl border border-line bg-white object-contain"
+    />
+  );
+}
 
 export function MissionPlayer({
   attemptId,
@@ -135,8 +158,22 @@ export function MissionPlayer({
     );
   }
 
+  const isEnglish = /\b(the|is|are|choose|sentence|what|where|which|meaning)\b/i.test(question.prompt);
+  const fullQuestionSpeech =
+    question.type === "multiple_choice"
+      ? `${question.prompt}. ` +
+        question.options
+          .map((opt, i) => `${isEnglish ? "Option" : "Pilihan"} ${OPTION_LETTERS[i]}: ${opt}`)
+          .join(". ")
+      : question.prompt;
+
+  const selectedOptionIndex =
+    question.type === "multiple_choice" ? question.options.indexOf(selected) : -1;
+  const selectedLetter =
+    selectedOptionIndex >= 0 ? OPTION_LETTERS[selectedOptionIndex] : "";
+
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl pb-28 sm:pb-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
@@ -163,14 +200,19 @@ export function MissionPlayer({
       <ProgressBar value={index + (feedback ? 1 : 0)} total={questions.length} label="Kemajuan misi" />
 
       <section className="card mt-4 p-5 sm:p-6" aria-labelledby="soal-judul">
-        <h2 id="soal-judul" className="text-lg font-bold leading-snug sm:text-xl">
-          {question.prompt}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="soal-judul" className="text-lg font-bold leading-snug sm:text-xl">
+            {question.prompt}
+          </h2>
+          <AudioSpeechButton text={fullQuestionSpeech} label="Bacakan soal dan pilihan" />
+        </div>
+
+        {question.imageUrl ? <QuestionImage src={question.imageUrl} /> : null}
 
         {question.type === "multiple_choice" ? (
           <fieldset className="mt-5">
             <legend className="sr-only">Pilihan jawaban</legend>
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {question.options.map((option, optionIndex) => {
                 const active = selected === option;
                 const showCorrect = feedback && option === feedback.correctAnswer;
@@ -180,32 +222,62 @@ export function MissionPlayer({
                     type="button"
                     disabled={Boolean(feedback) || busy}
                     aria-pressed={active}
-                    onClick={() => setSelected(option)}
+                    onClick={() => {
+                      if (feedback || busy) return;
+                      try {
+                        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+                          navigator.vibrate(10);
+                        }
+                      } catch {
+                        // Abaikan error haptik
+                      }
+
+                      // Jika sudah terpilih dan diketuk lagi, langsung submit jawaban
+                      if (selected === option) {
+                        void handleCheck();
+                        return;
+                      }
+
+                      setSelected(option);
+                      setError(null);
+                    }}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3.5 text-left text-base font-semibold transition",
-                      "disabled:cursor-default",
+                      "flex min-h-[56px] w-full cursor-pointer touch-manipulation items-center gap-3.5 rounded-2xl border-2 px-4 py-3.5 text-left text-base font-semibold transition active:scale-[0.98]",
+                      "disabled:cursor-default disabled:active:scale-100",
                       showCorrect
                         ? "border-leaf bg-leaf-soft text-[#1c5b36]"
                         : active
-                          ? "border-primary bg-primary-soft"
-                          : "border-line bg-surface hover:border-line-strong",
+                          ? "border-primary bg-primary-soft text-primary shadow-sm ring-2 ring-primary/30"
+                          : "border-line bg-surface hover:border-line-strong active:bg-paper",
                     )}
                   >
                     <span
                       aria-hidden="true"
                       className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-black",
-                        showCorrect ? "bg-leaf text-white" : active ? "bg-primary text-white" : "bg-paper text-muted",
+                        "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-black transition-colors",
+                        showCorrect
+                          ? "bg-leaf text-white"
+                          : active
+                            ? "bg-primary text-white"
+                            : "bg-paper text-muted border border-line",
                       )}
                     >
-                      {showCorrect ? <CheckCircle2 className="size-4" /> : OPTION_LETTERS[optionIndex]}
+                      {showCorrect ? <CheckCircle2 className="size-5" /> : OPTION_LETTERS[optionIndex]}
                     </span>
-                    <span className="flex-1">{option}</span>
-                    {active && !feedback ? <CheckCircle2 className="size-5 text-primary" aria-hidden="true" /> : null}
+                    <span className="flex-1 text-ink">{option}</span>
+                    {active && !feedback ? (
+                      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                        <CheckCircle2 className="size-4 text-primary" aria-hidden="true" />
+                        Terpilih
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
+            <p className="mt-2 text-center text-xs text-muted sm:text-left">
+              Ketuk pilihan untuk memilih, atau ketuk 2x untuk langsung mengirim jawaban.
+            </p>
           </fieldset>
         ) : (
           <div className="mt-5">
@@ -216,12 +288,15 @@ export function MissionPlayer({
               <input
                 id="jawaban-angka"
                 value={typed}
-                onChange={(event) => setTyped(event.target.value)}
+                onChange={(event) => {
+                  setTyped(event.target.value);
+                  setError(null);
+                }}
                 disabled={Boolean(feedback) || busy}
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="Tulis angka saja"
-                className="input text-lg font-bold"
+                className="input min-h-12 text-lg font-bold"
               />
               {question.answerUnit ? (
                 <span className="flex items-center rounded-2xl border border-line bg-paper px-3 text-sm font-bold text-muted">
@@ -249,7 +324,7 @@ export function MissionPlayer({
               <button
                 type="button"
                 onClick={() => setHintOpen(true)}
-                className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+                className="inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-primary hover:underline"
               >
                 <Lightbulb className="size-4" aria-hidden="true" />
                 Butuh petunjuk?
@@ -268,16 +343,33 @@ export function MissionPlayer({
         ) : null}
 
         {!feedback ? (
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={handleCheck} disabled={busy}>
-              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Send className="size-4" aria-hidden="true" />}
-              {busy ? "Memeriksa..." : "Periksa jawaban"}
-            </Button>
-            <p className="text-xs text-muted">
-              {isPractice
-                ? "Latihan tidak mengubah XP, jadi bebas mencoba tanpa takut salah."
-                : "Tidak ada pengurangan XP kalau salah."}
-            </p>
+          <div className="sticky bottom-0 -mx-5 -mb-5 mt-6 rounded-b-3xl border-t border-line bg-surface/98 p-3.5 shadow-xl backdrop-blur-md sm:static sm:mx-0 sm:mb-0 sm:mt-5 sm:rounded-none sm:border-t-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none z-30">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+              <Button
+                onClick={handleCheck}
+                disabled={busy}
+                className={cn(
+                  "h-12 w-full text-base font-bold sm:h-11 sm:w-auto shadow-md transition",
+                  selected && "bg-primary text-white ring-2 ring-primary/40",
+                )}
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Send className="size-4" aria-hidden="true" />}
+                {busy
+                  ? "Memeriksa..."
+                  : selectedLetter
+                    ? `Periksa Pilihan (${selectedLetter})`
+                    : "Periksa jawaban"}
+              </Button>
+              <p className="text-center text-xs text-muted sm:text-left">
+                {!answer.trim()
+                  ? question.type === "numeric"
+                    ? "Ketik angka jawabanmu di atas"
+                    : "Pilih salah satu jawaban di atas"
+                  : isPractice
+                    ? "Latihan bebas mencoba tanpa takut salah."
+                    : "Tidak ada pengurangan XP kalau salah."}
+              </p>
+            </div>
           </div>
         ) : null}
       </section>
@@ -317,19 +409,29 @@ export function MissionPlayer({
                 {question.answerUnit ? ` ${question.answerUnit}` : ""}
               </p>
             ) : null}
-            <p className="mt-2 text-sm leading-relaxed text-ink/85">{feedback.explanation}</p>
+            <div className="mt-2 flex items-start justify-between gap-2">
+              <p className="text-sm leading-relaxed text-ink/85">{feedback.explanation}</p>
+              <AudioSpeechButton text={feedback.explanation} label="Bacakan penjelasan" size="sm" />
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleNext} disabled={busy} variant={isLast ? "sun" : "primary"}>
-              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-              {isLast ? (isPractice ? "Lihat hasil latihan" : "Lihat hasil misi") : "Soal berikutnya"}
-              {!busy ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
-            </Button>
-            <p className="flex items-center gap-1.5 text-xs text-muted">
-              <Sparkles className="size-3.5 text-sun" aria-hidden="true" />
-              Penjelasan ini membantu kamu mengingat caranya.
-            </p>
+          <div className="sticky bottom-0 mt-4 rounded-2xl border border-line bg-surface/98 p-3.5 shadow-xl backdrop-blur-md sm:static sm:mt-0 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none z-30">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <Button
+                onClick={handleNext}
+                disabled={busy}
+                variant={isLast ? "sun" : "primary"}
+                className="h-12 w-full text-base font-bold sm:h-11 sm:w-auto"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+                {isLast ? (isPractice ? "Lihat hasil latihan" : "Lihat hasil misi") : "Soal berikutnya"}
+                {!busy ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
+              </Button>
+              <p className="flex items-center justify-center gap-1.5 text-xs text-muted sm:justify-start">
+                <Lightbulb className="size-3.5 text-sun shrink-0" aria-hidden="true" />
+                Penjelasan ini membantu kamu mengingat caranya.
+              </p>
+            </div>
           </div>
         </div>
       ) : null}

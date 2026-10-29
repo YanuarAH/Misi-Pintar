@@ -90,11 +90,12 @@ export async function createClassroom(
   teacherId: string,
   name = "Kelas Uji",
   gradeLevel: number | null = 5,
+  subjectSlug: string | null = "matematika",
 ): Promise<{ id: string; joinCode: string }> {
   const joinCode = randomCode(6);
   const [row] = await adminQuery<{ id: string }>(
-    "insert into classes (teacher_id, name, join_code, grade_level) values ($1, $2, $3, $4) returning id",
-    [teacherId, `${name} ${joinCode}`, joinCode, gradeLevel],
+    "insert into classes (teacher_id, name, join_code, grade_level, subject_slug) values ($1, $2, $3, $4, $5) returning id",
+    [teacherId, `${name} ${joinCode}`, joinCode, gradeLevel, subjectSlug],
   );
   return { id: row.id, joinCode };
 }
@@ -160,6 +161,7 @@ export async function createMission(options: {
   title?: string;
   orderIndex?: number;
   published?: boolean;
+  audience?: "public" | "class_only";
   gradeLevel?: number | null;
   subject?: string | null;
   topic?: string | null;
@@ -169,8 +171,8 @@ export async function createMission(options: {
   const [mission] = await adminQuery<{ id: string }>(
     `insert into missions
        (slug, title, description, story, learning_objectives, order_index, is_published, author_id,
-        grade_level, subject_slug, topic_slug)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
+        grade_level, subject_slug, topic_slug, audience)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
     [
       slug,
       options.title ?? `Misi ${slug}`,
@@ -183,6 +185,7 @@ export async function createMission(options: {
       options.gradeLevel === undefined ? 5 : options.gradeLevel,
       options.subject === undefined ? "matematika" : options.subject,
       options.topic === undefined ? "pecahan" : options.topic,
+      options.audience ?? "public",
     ],
   );
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BookOpenCheck, Compass, ListChecks, Sparkles, Trophy, Users } from "lucide-react";
+import { BookOpenCheck, Compass, GraduationCap, ListChecks, Trophy, Users } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { PublicFooter } from "@/components/layout/PublicFooter";
 import { HeroMap } from "@/components/marketing/HeroMap";
@@ -9,31 +9,39 @@ import { rows } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Misi Pintar — Belajar Seru, Selesaikan Misi!",
+  title: "Misi Pintar: Belajar Seru, Selesaikan Misi!",
   description:
-    "Platform belajar Matematika untuk siswa kelas 5–6 SD: misi bertema, soal bercerita, umpan balik langsung, XP, dan lencana.",
+    "Platform belajar Matematika, IPAS, Bahasa Indonesia, dan Bahasa Inggris untuk siswa kelas 5–6 SD: misi bertema, umpan balik langsung, XP, dan lencana.",
 };
 
 const steps = [
   {
     icon: Compass,
-    title: "Pilih misi",
-    body: "Setiap misi punya cerita sendiri: berbelanja di pasar, membantu koki, atau merancang taman.",
+    tint: "bg-primary-soft text-primary-strong",
+    badge: "Langkah 1",
+    title: "Pilih misi petualangan",
+    body: "Setiap misi punya latar cerita: berbelanja di pasar, membantu koki, atau merancang taman.",
   },
   {
     icon: BookOpenCheck,
-    title: "Baca cerita singkat",
-    body: "Tujuan pembelajaran ditulis dengan bahasa sederhana, tanpa istilah yang membingungkan.",
+    tint: "bg-sun-soft text-[#7a4a00]",
+    badge: "Langkah 2",
+    title: "Pahami konteks cerita",
+    body: "Tujuan pembelajaran ditulis dengan bahasa sederhana dan ramah, tanpa istilah yang membingungkan.",
   },
   {
     icon: ListChecks,
-    title: "Kerjakan 10 soal",
-    body: "Satu soal setiap kali. Ada petunjuk kalau bingung, dan penjelasan setiap kali menjawab.",
+    tint: "bg-sky-soft text-[#1d4b73]",
+    badge: "Langkah 3",
+    title: "Kerjakan soal interaktif",
+    body: "Satu soal setiap kali. Ada petunjuk saat bingung, dan penjelasan lengkap setiap kali menjawab.",
   },
   {
     icon: Trophy,
-    title: "Dapat XP & lencana",
-    body: "Progresmu tersimpan. Ulangi misi kapan saja untuk memperbaiki skor.",
+    tint: "bg-leaf-soft text-[#1c5b36]",
+    badge: "Langkah 4",
+    title: "Raih XP & lencana",
+    body: "Progresmu tersimpan rapi. Kamu bebas mengulangi misi kapan saja untuk memperbaiki skor.",
   },
 ];
 
@@ -57,8 +65,8 @@ export default async function LandingPage() {
       <main id="konten" className="mx-auto w-full max-w-6xl flex-1 px-5">
         <section className="grid items-center gap-10 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-14">
           <div className="animate-rise">
-            <p className="chip mb-4 bg-primary-soft text-primary-strong ring-1 ring-primary/15">
-              <Sparkles className="size-3.5" aria-hidden="true" />
+            <p className="chip mb-4 bg-primary-soft text-primary-strong ring-1 ring-primary/20">
+              <GraduationCap className="size-4 text-primary" aria-hidden="true" />
               Untuk siswa kelas 5–6 SD
             </p>
             <h1 className="text-4xl font-black leading-[1.05] sm:text-5xl lg:text-6xl">
@@ -67,8 +75,9 @@ export default async function LandingPage() {
               selesaikan <span className="text-primary">misi!</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-              Misi Pintar mengubah soal Matematika menjadi petualangan. Hitung uang kembalian di pasar, takar
-              bahan bersama koki, lalu rancang taman sekolah. Setiap jawaban langsung dapat penjelasan.
+              Misi Pintar mengubah pelajaran sekolah menjadi petualangan. Hitung uang kembalian di pasar, selidiki
+              makhluk hidup di kebun, dan ucapkan kalimat pertama dalam bahasa Inggris. Setiap jawaban langsung
+              dapat penjelasan.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <ButtonLink href={session ? "/belajar" : "/masuk"} className="px-7 text-base">
@@ -81,13 +90,16 @@ export default async function LandingPage() {
             </div>
             <dl className="mt-8 grid max-w-lg grid-cols-3 gap-3 text-center">
               {[
-                { term: "3 misi", desc: "bertema cerita" },
-                { term: "30 soal", desc: "dengan penjelasan" },
+                { term: `${missions.length} misi`, desc: "bertema cerita" },
+                {
+                  term: `${missions.reduce((sum, mission) => sum + Number(mission.question_count), 0)} soal`,
+                  desc: "dengan penjelasan",
+                },
                 { term: "0 iklan", desc: "aman untuk anak" },
               ].map((item) => (
                 <div key={item.term} className="rounded-2xl border border-line bg-surface/70 px-2 py-3">
                   <dt className="text-lg font-black text-ink">{item.term}</dt>
-                  <dd className="text-[11px] font-semibold uppercase tracking-wide text-muted">{item.desc}</dd>
+                  <dd className="text-xs font-semibold text-muted">{item.desc}</dd>
                 </div>
               ))}
             </dl>
@@ -99,9 +111,10 @@ export default async function LandingPage() {
         <section id="misi" className="scroll-mt-6 py-10">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-black sm:text-3xl">Peta misi Matematika</h2>
+              <h2 className="text-2xl font-black sm:text-3xl">Peta misi belajar</h2>
               <p className="mt-1 text-sm text-muted">
-                Tiga misi pertama sudah tersedia. Misi berikutnya terbuka setelah misi sebelumnya selesai.
+                Misi pertama di setiap mata pelajaran langsung terbuka. Misi berikutnya terbuka setelah misi
+                sebelumnya selesai.
               </p>
             </div>
             <ButtonLink href="/masuk" variant="ghost" size="sm">
@@ -139,17 +152,19 @@ export default async function LandingPage() {
             Tidak ada ujian mendadak dan tidak ada hukuman karena salah. Kamu belajar dari penjelasan, lalu
             mencoba lagi.
           </p>
-          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <li key={step.title} className="card flex flex-col gap-2 p-5">
-                <div className="flex items-center justify-between">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                    <step.icon className="size-5" aria-hidden="true" />
-                  </span>
-                  <span className="text-2xl font-black text-line-strong">{index + 1}</span>
+          <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step) => (
+              <li key={step.title} className="card flex flex-col justify-between gap-3 p-5 transition-transform hover:-translate-y-0.5">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className={`flex size-11 items-center justify-center rounded-xl ${step.tint}`}>
+                      <step.icon className="size-5" aria-hidden="true" />
+                    </span>
+                    <span className="text-xs font-black text-muted">{step.badge}</span>
+                  </div>
+                  <h3 className="mt-4 text-base font-black text-ink">{step.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">{step.body}</p>
                 </div>
-                <h3 className="text-base font-black">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-muted">{step.body}</p>
               </li>
             ))}
           </ol>
